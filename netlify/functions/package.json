@@ -1,0 +1,9 @@
+{
+  "name": "wf-functions",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Netlify functions for wf",
+  "dependencies": {
+    "mongodb": "^6.3.0"
+  }
+}
