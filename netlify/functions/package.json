@@ -4,6 +4,10 @@
   "type": "module",
   "description": "Netlify functions for wf",
   "dependencies": {
-    "mongodb": "^6.3.0"
+    "googleapis": "^167.0.0",
+    "imap-simple": "^5.1.0",
+    "mailparser": "^3.9.0",
+    "mongodb": "^6.3.0",
+    "nodemailer": "^7.0.11"
   }
 }

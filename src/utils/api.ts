@@ -31,3 +31,10 @@ export const apiPost = async (type: string, body: unknown) => {
   })
   return handleResponse(response)
 }
+
+export const getWorkflows = () => apiGet('workflows')
+
+export const getTasks = () => apiGet('tasks')
+
+export const runWorkflow = (workflow: string, inputs: Record<string, unknown>) =>
+  apiPost('workflow', { workflow, inputs })

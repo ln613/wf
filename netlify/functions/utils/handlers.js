@@ -1,5 +1,7 @@
 import { get, save, remove } from './db.js'
 import { ObjectId } from 'mongodb'
+import { executeWorkflow, getAllWorkflows } from './workflows/index.js'
+import { getAllTasks } from './tasks/index.js'
 
 const getTodos = async () => {
   return get('todos', {}, { sort: { createdAt: -1 } })
@@ -59,13 +61,34 @@ const createTestTodos = () => [
   { title: 'Setup Netlify functions', completed: true, createdAt: new Date() },
 ]
 
+const getWorkflows = async () => {
+  return getAllWorkflows()
+}
+
+const getTasks = async () => {
+  return getAllTasks()
+}
+
+const runWorkflowHandler = async (body) => {
+  validateWorkflowInput(body)
+  return executeWorkflow(body.workflow, body.inputs || {})
+}
+
+const validateWorkflowInput = (body) => {
+  if (!body) throw new Error('Request body is required')
+  if (!body.workflow) throw new Error('Workflow name is required')
+}
+
 export const apiHandlers = {
   get: {
     todos: getTodos,
+    workflows: getWorkflows,
+    tasks: getTasks,
   },
   post: {
     todo: updateTodo,
     deleteTodo: deleteTodo,
     seed: seedTodos,
+    workflow: runWorkflowHandler,
   },
 }
