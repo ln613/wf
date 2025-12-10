@@ -26,4 +26,24 @@ export const testWorkflows = {
       },
     ],
   },
+  test3: {
+    name: 'Test 3',
+    category: 'test',
+    tasks: [
+      {
+        taskName: 'Open Browser Window',
+        inputs: {
+          browserType: 'chrome',
+          url: 'https://github.com/ln613/roo-rules-server',
+        },
+      },
+      {
+        taskName: 'Find Element',
+        inputs: {
+          selector: 'h1.heading-element',
+          attributes: 'text',
+        },
+      },
+    ],
+  },
 }

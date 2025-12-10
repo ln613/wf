@@ -1,4 +1,5 @@
 import { getLatestEmail, sendEmail } from './email.js'
+import { findBrowserWindow, openBrowserWindow, findElements, closeBrowserConnection } from './browser.js'
 
 export const tasks = {
   email: {
@@ -20,6 +21,44 @@ export const tasks = {
       ],
       outputs: ['success', 'message'],
       handler: sendEmail,
+    },
+  },
+  browser: {
+    findBrowserWindow: {
+      name: 'Find Browser Window',
+      inputs: [
+        { name: 'browserType', type: 'string', label: 'Browser Type (any, chrome, firefox)', required: false, default: 'any' },
+        { name: 'title', type: 'string', label: 'Window Title (substring, case insensitive)', required: true },
+      ],
+      outputs: ['connectionId', 'title', 'url', 'browserType'],
+      handler: findBrowserWindow,
+    },
+    openBrowserWindow: {
+      name: 'Open Browser Window',
+      inputs: [
+        { name: 'browserType', type: 'string', label: 'Browser Type (chrome, firefox)', required: false, default: 'chrome' },
+        { name: 'url', type: 'string', label: 'URL to navigate to', required: true },
+      ],
+      outputs: ['connectionId', 'title', 'url', 'browserType'],
+      handler: openBrowserWindow,
+    },
+    findElements: {
+      name: 'Find Element',
+      inputs: [
+        { name: 'connectionId', type: 'string', label: 'Browser Connection ID', required: true },
+        { name: 'selector', type: 'string', label: 'CSS Selector', required: true },
+        { name: 'attributes', type: 'string', label: 'Attributes to extract (comma-separated)', required: true },
+      ],
+      outputs: ['elements'],
+      handler: findElements,
+    },
+    closeBrowserConnection: {
+      name: 'Close Browser Connection',
+      inputs: [
+        { name: 'connectionId', type: 'string', label: 'Browser Connection ID', required: true },
+      ],
+      outputs: ['success', 'message'],
+      handler: closeBrowserConnection,
     },
   },
 }

@@ -15,3 +15,10 @@
   - receiver: ln613@hotmail.com
   - subject: hh
   - body: hello
+
+## Test 3
+
+### Tasks
+
+- Open browser window (chrome, https://github.com/ln613/roo-rules-server)
+- Find element (h1.heading-element, text)
