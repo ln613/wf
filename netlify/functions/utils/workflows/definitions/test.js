@@ -11,4 +11,19 @@ export const testWorkflows = {
       },
     ],
   },
+  test2: {
+    name: 'Test 2',
+    category: 'test',
+    tasks: [
+      {
+        taskName: 'Send Email',
+        inputs: {
+          senderAccount: 'GMAIL_1',
+          receiverEmail: 'ln613@hotmail.com',
+          subject: 'hh',
+          body: 'hello',
+        },
+      },
+    ],
+  },
 }
