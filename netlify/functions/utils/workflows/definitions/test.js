@@ -38,9 +38,9 @@ export const testWorkflows = {
         },
       },
       {
-        taskName: 'Find Element',
+        taskName: 'Get Attribute',
         inputs: {
-          selector: 'h1.heading-element',
+          selector: '.Layout-sidebar .f4',
           attributes: 'text',
         },
       },

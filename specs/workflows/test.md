@@ -21,4 +21,4 @@
 ### Tasks
 
 - Open browser window (chrome, https://github.com/ln613/roo-rules-server)
-- Find element (h1.heading-element, text)
+- Get attribute ('.Layout-sidebar .f4', text)

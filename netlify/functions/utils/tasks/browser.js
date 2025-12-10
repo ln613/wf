@@ -112,14 +112,65 @@ const getDefaultChromePath = () => {
 }
 
 /**
- * Find element(s) on a page and extract specified attributes
+ * Close a browser window
+ * @param {Object} inputs
+ * @param {string} inputs.connectionId - Browser connection ID
+ * @returns {Object} Result with success status
+ */
+export const closeBrowserWindow = async ({ connectionId }) => {
+  const connection = browserConnections.get(connectionId)
+  if (connection) {
+    // If we own the browser (launched it), close it; otherwise just disconnect
+    if (connection.owned) {
+      await connection.browser.close()
+    } else {
+      connection.browser.disconnect()
+    }
+    browserConnections.delete(connectionId)
+    return { success: true, message: 'Browser window closed' }
+  }
+  return { success: false, message: 'Connection not found' }
+}
+
+/**
+ * Find element(s) on a page
  * @param {Object} inputs
  * @param {string} inputs.connectionId - Browser connection ID from findBrowserWindow
+ * @param {string} inputs.selector - CSS query selector
+ * @returns {Object} Result with found status and count
+ */
+export const findElements = async ({ connectionId, selector }) => {
+  try {
+    const connection = browserConnections.get(connectionId)
+    if (!connection) {
+      throw new Error(`No active browser connection found for ID: ${connectionId}`)
+    }
+
+    const { page } = connection
+
+    // Find all elements matching the selector
+    const elements = await page.$$(selector)
+
+    return {
+      found: elements.length > 0,
+      count: elements.length,
+      selector,
+    }
+  } catch (error) {
+    console.error('Error finding elements:', error.message)
+    throw error
+  }
+}
+
+/**
+ * Get attribute(s) from element(s)
+ * @param {Object} inputs
+ * @param {string} inputs.connectionId - Browser connection ID
  * @param {string} inputs.selector - CSS query selector
  * @param {string|string[]} inputs.attributes - Attribute(s) to extract
  * @returns {Object|Object[]|null} Element attributes or array of element attributes
  */
-export const findElements = async ({ connectionId, selector, attributes }) => {
+export const getAttribute = async ({ connectionId, selector, attributes }) => {
   try {
     const connection = browserConnections.get(connectionId)
     if (!connection) {
@@ -160,27 +211,323 @@ export const findElements = async ({ connectionId, selector, attributes }) => {
     // Return single object if only one element found, otherwise return array
     return results.length === 1 ? results[0] : results
   } catch (error) {
-    console.error('Error finding elements:', error.message)
+    console.error('Error getting attribute:', error.message)
     throw error
   }
 }
 
 /**
- * Close a browser connection (cleanup)
+ * Set attribute on element
  * @param {Object} inputs
  * @param {string} inputs.connectionId - Browser connection ID
+ * @param {string} inputs.selector - CSS query selector
+ * @param {string} inputs.name - Attribute name
+ * @param {string} inputs.value - Attribute value
+ * @returns {Object} Result with success status
  */
-export const closeBrowserConnection = async ({ connectionId }) => {
-  const connection = browserConnections.get(connectionId)
-  if (connection) {
-    // If we own the browser (launched it), close it; otherwise just disconnect
-    if (connection.owned) {
-      await connection.browser.close()
-    } else {
-      connection.browser.disconnect()
+export const setAttribute = async ({ connectionId, selector, name, value }) => {
+  try {
+    const connection = browserConnections.get(connectionId)
+    if (!connection) {
+      throw new Error(`No active browser connection found for ID: ${connectionId}`)
     }
-    browserConnections.delete(connectionId)
-    return { success: true, message: 'Connection closed' }
+
+    const { page } = connection
+    const element = await page.$(selector)
+
+    if (!element) {
+      return { success: false, message: 'Element not found' }
+    }
+
+    await element.evaluate((el, attrName, attrValue) => {
+      el.setAttribute(attrName, attrValue)
+    }, name, value)
+
+    return { success: true, message: `Attribute ${name} set to ${value}` }
+  } catch (error) {
+    console.error('Error setting attribute:', error.message)
+    throw error
   }
-  return { success: false, message: 'Connection not found' }
+}
+
+/**
+ * Enter text into an input element
+ * @param {Object} inputs
+ * @param {string} inputs.connectionId - Browser connection ID
+ * @param {string} inputs.selector - CSS query selector
+ * @param {string} inputs.text - Text to enter
+ * @returns {Object} Result with success status
+ */
+export const enterText = async ({ connectionId, selector, text }) => {
+  try {
+    const connection = browserConnections.get(connectionId)
+    if (!connection) {
+      throw new Error(`No active browser connection found for ID: ${connectionId}`)
+    }
+
+    const { page } = connection
+    const element = await page.$(selector)
+
+    if (!element) {
+      return { success: false, message: 'Element not found' }
+    }
+
+    // Check if element is input or textarea
+    const tagName = await element.evaluate((el) => el.tagName.toLowerCase())
+    if (tagName !== 'input' && tagName !== 'textarea') {
+      return { success: false, message: 'Element is not an input box or text area' }
+    }
+
+    await element.type(text)
+    return { success: true, message: 'Text entered successfully' }
+  } catch (error) {
+    console.error('Error entering text:', error.message)
+    throw error
+  }
+}
+
+/**
+ * Click on an element
+ * @param {Object} inputs
+ * @param {string} inputs.connectionId - Browser connection ID
+ * @param {string} inputs.selector - CSS query selector
+ * @returns {Object} Result with success status
+ */
+export const clickElement = async ({ connectionId, selector }) => {
+  try {
+    const connection = browserConnections.get(connectionId)
+    if (!connection) {
+      throw new Error(`No active browser connection found for ID: ${connectionId}`)
+    }
+
+    const { page } = connection
+    const element = await page.$(selector)
+
+    if (!element) {
+      return { success: false, message: 'Element not found' }
+    }
+
+    await element.click()
+    return { success: true, message: 'Element clicked successfully' }
+  } catch (error) {
+    console.error('Error clicking element:', error.message)
+    throw error
+  }
+}
+
+/**
+ * Check a checkbox element
+ * @param {Object} inputs
+ * @param {string} inputs.connectionId - Browser connection ID
+ * @param {string} inputs.selector - CSS query selector
+ * @returns {Object} Result with success status
+ */
+export const checkElement = async ({ connectionId, selector }) => {
+  try {
+    const connection = browserConnections.get(connectionId)
+    if (!connection) {
+      throw new Error(`No active browser connection found for ID: ${connectionId}`)
+    }
+
+    const { page } = connection
+    const element = await page.$(selector)
+
+    if (!element) {
+      return { success: false, message: 'Element not found' }
+    }
+
+    // Check if element is a checkbox
+    const isCheckbox = await element.evaluate((el) => el.type === 'checkbox')
+    if (!isCheckbox) {
+      return { success: false, message: 'Element is not a checkbox' }
+    }
+
+    const isChecked = await element.evaluate((el) => el.checked)
+    if (!isChecked) {
+      await element.click()
+    }
+
+    return { success: true, message: 'Checkbox checked' }
+  } catch (error) {
+    console.error('Error checking element:', error.message)
+    throw error
+  }
+}
+
+/**
+ * Uncheck a checkbox element
+ * @param {Object} inputs
+ * @param {string} inputs.connectionId - Browser connection ID
+ * @param {string} inputs.selector - CSS query selector
+ * @returns {Object} Result with success status
+ */
+export const uncheckElement = async ({ connectionId, selector }) => {
+  try {
+    const connection = browserConnections.get(connectionId)
+    if (!connection) {
+      throw new Error(`No active browser connection found for ID: ${connectionId}`)
+    }
+
+    const { page } = connection
+    const element = await page.$(selector)
+
+    if (!element) {
+      return { success: false, message: 'Element not found' }
+    }
+
+    // Check if element is a checkbox
+    const isCheckbox = await element.evaluate((el) => el.type === 'checkbox')
+    if (!isCheckbox) {
+      return { success: false, message: 'Element is not a checkbox' }
+    }
+
+    const isChecked = await element.evaluate((el) => el.checked)
+    if (isChecked) {
+      await element.click()
+    }
+
+    return { success: true, message: 'Checkbox unchecked' }
+  } catch (error) {
+    console.error('Error unchecking element:', error.message)
+    throw error
+  }
+}
+
+/**
+ * Toggle a checkbox element
+ * @param {Object} inputs
+ * @param {string} inputs.connectionId - Browser connection ID
+ * @param {string} inputs.selector - CSS query selector
+ * @returns {Object} Result with success status and new state
+ */
+export const toggleElement = async ({ connectionId, selector }) => {
+  try {
+    const connection = browserConnections.get(connectionId)
+    if (!connection) {
+      throw new Error(`No active browser connection found for ID: ${connectionId}`)
+    }
+
+    const { page } = connection
+    const element = await page.$(selector)
+
+    if (!element) {
+      return { success: false, message: 'Element not found' }
+    }
+
+    // Check if element is a checkbox
+    const isCheckbox = await element.evaluate((el) => el.type === 'checkbox')
+    if (!isCheckbox) {
+      return { success: false, message: 'Element is not a checkbox' }
+    }
+
+    await element.click()
+    const newState = await element.evaluate((el) => el.checked)
+
+    return { success: true, message: 'Checkbox toggled', checked: newState }
+  } catch (error) {
+    console.error('Error toggling element:', error.message)
+    throw error
+  }
+}
+
+/**
+ * Select option in a radio button group
+ * @param {Object} inputs
+ * @param {string} inputs.connectionId - Browser connection ID
+ * @param {string} inputs.selector - CSS query selector for radio group
+ * @param {string} inputs.value - Value or text to select
+ * @returns {Object} Result with success status
+ */
+export const selectOption = async ({ connectionId, selector, value }) => {
+  try {
+    const connection = browserConnections.get(connectionId)
+    if (!connection) {
+      throw new Error(`No active browser connection found for ID: ${connectionId}`)
+    }
+
+    const { page } = connection
+    const elements = await page.$$(selector)
+
+    if (elements.length === 0) {
+      return { success: false, message: 'No elements found' }
+    }
+
+    // Find radio button with matching value or label
+    for (const element of elements) {
+      const isRadio = await element.evaluate((el) => el.type === 'radio')
+      if (!isRadio) continue
+
+      const elementValue = await element.evaluate((el) => el.value)
+      const labelText = await element.evaluate((el) => {
+        const label = el.labels?.[0]
+        return label ? label.textContent?.trim() : ''
+      })
+
+      if (elementValue === value || labelText === value) {
+        await element.click()
+        return { success: true, message: `Selected option: ${value}` }
+      }
+    }
+
+    return { success: false, message: `Option with value "${value}" not found` }
+  } catch (error) {
+    console.error('Error selecting option:', error.message)
+    throw error
+  }
+}
+
+/**
+ * Select option from dropdown
+ * @param {Object} inputs
+ * @param {string} inputs.connectionId - Browser connection ID
+ * @param {string} inputs.selector - CSS query selector for select element
+ * @param {string} inputs.value - Value or text to select
+ * @returns {Object} Result with success status
+ */
+export const selectFromDropdown = async ({ connectionId, selector, value }) => {
+  try {
+    const connection = browserConnections.get(connectionId)
+    if (!connection) {
+      throw new Error(`No active browser connection found for ID: ${connectionId}`)
+    }
+
+    const { page } = connection
+    const element = await page.$(selector)
+
+    if (!element) {
+      return { success: false, message: 'Element not found' }
+    }
+
+    // Check if element is a select
+    const tagName = await element.evaluate((el) => el.tagName.toLowerCase())
+    if (tagName !== 'select') {
+      return { success: false, message: 'Element is not a select/dropdown' }
+    }
+
+    // Try to select by value first, then by text
+    try {
+      await page.select(selector, value)
+      return { success: true, message: `Selected: ${value}` }
+    } catch {
+      // If value selection fails, try selecting by visible text
+      const selected = await element.evaluate((el, val) => {
+        const options = Array.from(el.options)
+        const option = options.find((opt) => opt.text === val)
+        if (option) {
+          el.value = option.value
+          el.dispatchEvent(new Event('change', { bubbles: true }))
+          return true
+        }
+        return false
+      }, value)
+
+      if (selected) {
+        return { success: true, message: `Selected: ${value}` }
+      }
+      return { success: false, message: `Option "${value}" not found in dropdown` }
+    }
+  } catch (error) {
+    console.error('Error selecting from dropdown:', error.message)
+    throw error
+  }
 }

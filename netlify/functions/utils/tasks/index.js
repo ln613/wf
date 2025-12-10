@@ -1,5 +1,19 @@
 import { getLatestEmail, sendEmail } from './email.js'
-import { findBrowserWindow, openBrowserWindow, findElements, closeBrowserConnection } from './browser.js'
+import {
+  findBrowserWindow,
+  openBrowserWindow,
+  closeBrowserWindow,
+  findElements,
+  getAttribute,
+  setAttribute,
+  enterText,
+  clickElement,
+  checkElement,
+  uncheckElement,
+  toggleElement,
+  selectOption,
+  selectFromDropdown,
+} from './browser.js'
 
 export const tasks = {
   email: {
@@ -42,23 +56,109 @@ export const tasks = {
       outputs: ['connectionId', 'title', 'url', 'browserType'],
       handler: openBrowserWindow,
     },
+    closeBrowserWindow: {
+      name: 'Close Browser Window',
+      inputs: [
+        { name: 'connectionId', type: 'string', label: 'Browser Connection ID', required: true },
+      ],
+      outputs: ['success', 'message'],
+      handler: closeBrowserWindow,
+    },
     findElements: {
       name: 'Find Element',
       inputs: [
         { name: 'connectionId', type: 'string', label: 'Browser Connection ID', required: true },
         { name: 'selector', type: 'string', label: 'CSS Selector', required: true },
-        { name: 'attributes', type: 'string', label: 'Attributes to extract (comma-separated)', required: true },
       ],
-      outputs: ['elements'],
+      outputs: ['found', 'count', 'selector'],
       handler: findElements,
     },
-    closeBrowserConnection: {
-      name: 'Close Browser Connection',
+    getAttribute: {
+      name: 'Get Attribute',
       inputs: [
         { name: 'connectionId', type: 'string', label: 'Browser Connection ID', required: true },
+        { name: 'selector', type: 'string', label: 'CSS Selector', required: true },
+        { name: 'attributes', type: 'string', label: 'Attributes to extract (comma-separated)', required: true },
+      ],
+      outputs: ['attributes'],
+      handler: getAttribute,
+    },
+    setAttribute: {
+      name: 'Set Attribute',
+      inputs: [
+        { name: 'connectionId', type: 'string', label: 'Browser Connection ID', required: true },
+        { name: 'selector', type: 'string', label: 'CSS Selector', required: true },
+        { name: 'name', type: 'string', label: 'Attribute Name', required: true },
+        { name: 'value', type: 'string', label: 'Attribute Value', required: true },
       ],
       outputs: ['success', 'message'],
-      handler: closeBrowserConnection,
+      handler: setAttribute,
+    },
+    enterText: {
+      name: 'Enter Text',
+      inputs: [
+        { name: 'connectionId', type: 'string', label: 'Browser Connection ID', required: true },
+        { name: 'selector', type: 'string', label: 'CSS Selector', required: true },
+        { name: 'text', type: 'string', label: 'Text to enter', required: true },
+      ],
+      outputs: ['success', 'message'],
+      handler: enterText,
+    },
+    clickElement: {
+      name: 'Click Element',
+      inputs: [
+        { name: 'connectionId', type: 'string', label: 'Browser Connection ID', required: true },
+        { name: 'selector', type: 'string', label: 'CSS Selector', required: true },
+      ],
+      outputs: ['success', 'message'],
+      handler: clickElement,
+    },
+    checkElement: {
+      name: 'Check Element',
+      inputs: [
+        { name: 'connectionId', type: 'string', label: 'Browser Connection ID', required: true },
+        { name: 'selector', type: 'string', label: 'CSS Selector', required: true },
+      ],
+      outputs: ['success', 'message'],
+      handler: checkElement,
+    },
+    uncheckElement: {
+      name: 'Uncheck Element',
+      inputs: [
+        { name: 'connectionId', type: 'string', label: 'Browser Connection ID', required: true },
+        { name: 'selector', type: 'string', label: 'CSS Selector', required: true },
+      ],
+      outputs: ['success', 'message'],
+      handler: uncheckElement,
+    },
+    toggleElement: {
+      name: 'Toggle Element',
+      inputs: [
+        { name: 'connectionId', type: 'string', label: 'Browser Connection ID', required: true },
+        { name: 'selector', type: 'string', label: 'CSS Selector', required: true },
+      ],
+      outputs: ['success', 'message', 'checked'],
+      handler: toggleElement,
+    },
+    selectOption: {
+      name: 'Select Option',
+      inputs: [
+        { name: 'connectionId', type: 'string', label: 'Browser Connection ID', required: true },
+        { name: 'selector', type: 'string', label: 'CSS Selector', required: true },
+        { name: 'value', type: 'string', label: 'Value or text to select', required: true },
+      ],
+      outputs: ['success', 'message'],
+      handler: selectOption,
+    },
+    selectFromDropdown: {
+      name: 'Select From Dropdown',
+      inputs: [
+        { name: 'connectionId', type: 'string', label: 'Browser Connection ID', required: true },
+        { name: 'selector', type: 'string', label: 'CSS Selector', required: true },
+        { name: 'value', type: 'string', label: 'Value or text to select', required: true },
+      ],
+      outputs: ['success', 'message'],
+      handler: selectFromDropdown,
     },
   },
 }
