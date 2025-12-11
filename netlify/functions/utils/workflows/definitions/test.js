@@ -41,14 +41,14 @@ export const testWorkflows = {
         taskName: 'Enter Text',
         inputs: {
           selector: '#username',
-          text: 'WW_SUPPORT',
+          text: 'WW_LAB',
         },
       },
       {
         taskName: 'Enter Text',
         inputs: {
           selector: '#password',
-          text: 'WW_SUPPORT_PASSWORD',
+          text: 'WW_LAB_PASSWORD',
         },
       },
       {

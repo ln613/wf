@@ -21,6 +21,6 @@
 ### Tasks
 
 - Open browser window (chrome, https://wirelesswater.com/Account/LogOn?ReturnUrl=%2fmain)
-- Enter text ('#username', WW_SUPPORT)
-- Enter text ('#password', WW_SUPPORT_PASSWORD)
+- Enter text ('#username', WW_LAB)
+- Enter text ('#password', WW_LAB_PASSWORD)
 - Click ('button.filter')
