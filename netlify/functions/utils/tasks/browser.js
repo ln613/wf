@@ -255,7 +255,7 @@ export const setAttribute = async ({ connectionId, selector, name, value }) => {
  * @param {Object} inputs
  * @param {string} inputs.connectionId - Browser connection ID
  * @param {string} inputs.selector - CSS query selector
- * @param {string} inputs.text - Text to enter
+ * @param {string} inputs.text - Text to enter (or env var name)
  * @returns {Object} Result with success status
  */
 export const enterText = async ({ connectionId, selector, text }) => {
@@ -278,7 +278,10 @@ export const enterText = async ({ connectionId, selector, text }) => {
       return { success: false, message: 'Element is not an input box or text area' }
     }
 
-    await element.type(text)
+    // Resolve text from environment variable if it exists
+    const resolvedText = process.env[text] || text
+
+    await element.type(resolvedText)
     return { success: true, message: 'Text entered successfully' }
   } catch (error) {
     console.error('Error entering text:', error.message)

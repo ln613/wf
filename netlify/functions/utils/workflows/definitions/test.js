@@ -34,14 +34,27 @@ export const testWorkflows = {
         taskName: 'Open Browser Window',
         inputs: {
           browserType: 'chrome',
-          url: 'https://github.com/ln613/roo-rules-server',
+          url: 'https://wirelesswater.com/Account/LogOn?ReturnUrl=%2fmain',
         },
       },
       {
-        taskName: 'Get Attribute',
+        taskName: 'Enter Text',
         inputs: {
-          selector: '.Layout-sidebar .f4',
-          attributes: 'text',
+          selector: '#username',
+          text: 'WW_SUPPORT',
+        },
+      },
+      {
+        taskName: 'Enter Text',
+        inputs: {
+          selector: '#password',
+          text: 'WW_SUPPORT_PASSWORD',
+        },
+      },
+      {
+        taskName: 'Click Element',
+        inputs: {
+          selector: 'button.filter',
         },
       },
     ],

@@ -20,5 +20,7 @@
 
 ### Tasks
 
-- Open browser window (chrome, https://github.com/ln613/roo-rules-server)
-- Get attribute ('.Layout-sidebar .f4', text)
+- Open browser window (chrome, https://wirelesswater.com/Account/LogOn?ReturnUrl=%2fmain)
+- Enter text ('#username', WW_SUPPORT)
+- Enter text ('#password', WW_SUPPORT_PASSWORD)
+- Click ('button.filter')
