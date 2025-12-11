@@ -57,6 +57,31 @@ export const testWorkflows = {
           selector: 'button.filter',
         },
       },
+      {
+        taskName: 'Click Element',
+        inputs: {
+          selector: 'a[href="/labarchive"]',
+        },
+      },
+      {
+        taskName: 'Enter Text',
+        inputs: {
+          selector: '#txtSearch1',
+          text: '25G3917',
+        },
+      },
+      {
+        taskName: 'Click Element',
+        inputs: {
+          selector: 'a[title="search"]',
+        },
+      },
+      {
+        taskName: 'Click Element',
+        inputs: {
+          selector: 'a[href^="/LabArchive/SummaryView/"]',
+        },
+      },
     ],
   },
 }

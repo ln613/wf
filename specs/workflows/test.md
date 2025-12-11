@@ -24,3 +24,7 @@
 - Enter text ('#username', WW_LAB)
 - Enter text ('#password', WW_LAB_PASSWORD)
 - Click ('button.filter')
+- Click ('a[href="/labarchive"]')
+- Enter text ('#txtSearch1', '25G3917')
+- Click ('a[title="search"]')
+- Click ('a[href^="/LabArchive/SummaryView/"]')
