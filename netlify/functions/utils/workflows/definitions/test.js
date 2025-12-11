@@ -58,6 +58,12 @@ export const testWorkflows = {
         },
       },
       {
+        taskName: 'Wait',
+        inputs: {
+          seconds: 3,
+        },
+      },
+      {
         taskName: 'Click Element',
         inputs: {
           selector: 'a[href="/labarchive"]',

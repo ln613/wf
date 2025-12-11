@@ -1,5 +1,6 @@
 import { getLatestEmail, sendEmail } from './email.js'
 import {
+  wait,
   findBrowserWindow,
   openBrowserWindow,
   closeBrowserWindow,
@@ -159,6 +160,16 @@ export const tasks = {
       ],
       outputs: ['success', 'message'],
       handler: selectFromDropdown,
+    },
+  },
+  utility: {
+    wait: {
+      name: 'Wait',
+      inputs: [
+        { name: 'seconds', type: 'number', label: 'Seconds to wait', required: true },
+      ],
+      outputs: ['success', 'message'],
+      handler: wait,
     },
   },
 }

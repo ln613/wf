@@ -4,6 +4,17 @@ import puppeteer from 'puppeteer-core'
 const browserConnections = new Map()
 
 /**
+ * Wait for a specified number of seconds
+ * @param {Object} inputs
+ * @param {number} inputs.seconds - Number of seconds to wait
+ * @returns {Object} Result with success status
+ */
+export const wait = async ({ seconds }) => {
+  await new Promise((resolve) => setTimeout(resolve, seconds * 1000))
+  return { success: true, message: `Waited ${seconds} seconds` }
+}
+
+/**
  * Find an existing browser window by type and title
  * @param {Object} inputs
  * @param {string} inputs.browserType - Browser type (chrome, firefox, any)
