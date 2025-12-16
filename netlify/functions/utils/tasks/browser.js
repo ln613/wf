@@ -15,6 +15,37 @@ export const wait = async ({ seconds }) => {
 }
 
 /**
+ * Navigate to a URL in the current browser window
+ * @param {Object} inputs
+ * @param {string} inputs.connectionId - Browser connection ID
+ * @param {string} inputs.url - URL to navigate to
+ * @returns {Object} Result with success status
+ */
+export const navigate = async ({ connectionId, url }) => {
+  try {
+    const connection = browserConnections.get(connectionId)
+    if (!connection) {
+      throw new Error(`No active browser connection found for ID: ${connectionId}`)
+    }
+
+    const { page } = connection
+    await page.goto(url, { waitUntil: 'networkidle2' })
+    
+    const pageTitle = await page.title()
+    
+    return {
+      success: true,
+      message: `Navigated to ${url}`,
+      title: pageTitle,
+      url: page.url()
+    }
+  } catch (error) {
+    console.error('Error navigating:', error.message)
+    throw error
+  }
+}
+
+/**
  * Find an existing browser window by type and title
  * @param {Object} inputs
  * @param {string} inputs.browserType - Browser type (chrome, firefox, any)

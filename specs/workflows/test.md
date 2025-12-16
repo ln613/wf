@@ -24,8 +24,8 @@
 - Enter text ('#username', WW_LAB)
 - Enter text ('#password', WW_LAB_PASSWORD)
 - Click ('button.filter')
-- wait 3 seconds
-- Click ('a[href="/labarchive"]')
+- Wait 3 seconds
+- Navigate to https://wirelesswater.com/labarchive
 - Enter text ('#txtSearch1', '25G3917')
 - Click ('a[title="search"]')
 - Click ('a[href^="/LabArchive/SummaryView/"]')

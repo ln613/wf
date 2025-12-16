@@ -1,6 +1,7 @@
 import { getLatestEmail, sendEmail } from './email.js'
 import {
   wait,
+  navigate,
   findBrowserWindow,
   openBrowserWindow,
   closeBrowserWindow,
@@ -56,6 +57,15 @@ export const tasks = {
       ],
       outputs: ['connectionId', 'title', 'url', 'browserType'],
       handler: openBrowserWindow,
+    },
+    navigate: {
+      name: 'Navigate',
+      inputs: [
+        { name: 'connectionId', type: 'string', label: 'Browser Connection ID', required: true },
+        { name: 'url', type: 'string', label: 'URL to navigate to', required: true },
+      ],
+      outputs: ['success', 'message', 'title', 'url'],
+      handler: navigate,
     },
     closeBrowserWindow: {
       name: 'Close Browser Window',

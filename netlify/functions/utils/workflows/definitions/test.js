@@ -64,9 +64,9 @@ export const testWorkflows = {
         },
       },
       {
-        taskName: 'Click Element',
+        taskName: 'Navigate',
         inputs: {
-          selector: 'a[href="/labarchive"]',
+          url: 'https://wirelesswater.com/labarchive',
         },
       },
       {
