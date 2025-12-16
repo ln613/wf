@@ -16,6 +16,7 @@ import {
   selectOption,
   selectFromDropdown,
 } from './browser.js'
+import { ollamaGenerate } from './llm.js'
 
 export const tasks = {
   email: {
@@ -180,6 +181,20 @@ export const tasks = {
       ],
       outputs: ['success', 'message'],
       handler: wait,
+    },
+  },
+  llm: {
+    ollamaGenerate: {
+      name: 'Ollama API',
+      inputs: [
+        { name: 'model', type: 'string', label: 'Model', required: true },
+        { name: 'prompt', type: 'text', label: 'Prompt', required: true },
+        { name: 'images', type: 'string', label: 'Images (comma-separated paths or URLs)', required: false },
+        { name: 'ollamaUrl', type: 'string', label: 'Ollama URL (default: http://localhost:11434/api)', required: false },
+        { name: 'stream', type: 'boolean', label: 'Stream Response', required: false, default: false },
+      ],
+      outputs: ['success', 'response', 'model', 'error'],
+      handler: ollamaGenerate,
     },
   },
 }
