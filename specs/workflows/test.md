@@ -35,3 +35,9 @@
 ### Tasks
 
 - Call Ollama API (deepseek-r1:8b, 'tell me a joke')
+
+## Test Gemini
+
+### Tasks
+
+- Open browser window (chrome, https://gemini.google.com/app)

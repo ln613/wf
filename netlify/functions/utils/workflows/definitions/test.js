@@ -103,4 +103,17 @@ export const testWorkflows = {
       },
     ],
   },
+  testGemini: {
+    name: 'Test Gemini',
+    category: 'test',
+    tasks: [
+      {
+        taskName: 'Open Browser Window',
+        inputs: {
+          browserType: 'chrome',
+          url: 'https://gemini.google.com/app',
+        },
+      },
+    ],
+  },
 }
