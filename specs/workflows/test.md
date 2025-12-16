@@ -1,12 +1,12 @@
 # Test workflows
 
-## Test 1
+## Test Get Email
 
 ### Tasks
 
 - Get Latest Email (GMAIL_1)
 
-## Test 2
+## Test Send Email
 
 ### Tasks
 
@@ -16,7 +16,7 @@
   - subject: hh
   - body: hello
 
-## Test 3
+## Test Browser Automation
 
 ### Tasks
 
@@ -29,3 +29,9 @@
 - Enter text ('#txtSearch1', '25G3917')
 - Click ('a[title="search"]')
 - Click ('a[href^="/LabArchive/SummaryView/"]')
+
+## Test Ollama
+
+### Tasks
+
+- Call Ollama API (deepseek-r1:8b, 'tell me a joke')

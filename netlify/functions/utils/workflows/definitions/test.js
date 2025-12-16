@@ -1,6 +1,6 @@
 export const testWorkflows = {
-  test1: {
-    name: 'Test 1',
+  testGetEmail: {
+    name: 'Test Get Email',
     category: 'test',
     tasks: [
       {
@@ -11,8 +11,8 @@ export const testWorkflows = {
       },
     ],
   },
-  test2: {
-    name: 'Test 2',
+  testSendEmail: {
+    name: 'Test Send Email',
     category: 'test',
     tasks: [
       {
@@ -26,8 +26,8 @@ export const testWorkflows = {
       },
     ],
   },
-  test3: {
-    name: 'Test 3',
+  testBrowserAutomation: {
+    name: 'Test Browser Automation',
     category: 'test',
     tasks: [
       {
@@ -86,6 +86,19 @@ export const testWorkflows = {
         taskName: 'Click Element',
         inputs: {
           selector: 'a[href^="/LabArchive/SummaryView/"]',
+        },
+      },
+    ],
+  },
+  testOllama: {
+    name: 'Test Ollama',
+    category: 'test',
+    tasks: [
+      {
+        taskName: 'Ollama API',
+        inputs: {
+          model: 'deepseek-r1:8b',
+          prompt: 'tell me a joke',
         },
       },
     ],
