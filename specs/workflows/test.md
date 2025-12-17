@@ -34,10 +34,11 @@
 
 ### Tasks
 
-- Call Ollama API
-  - model: gemma3
-  - prompt: extract the table in the image into JSON
-  - images: "/Users/nanli/Downloads/13.png"
+- For every image under /Users/nanli/Downloads/caro
+  - Call Ollama API
+    - model: gemma3
+    - prompt: extract the table in the image into JSON
+- Combine all results into the final JSON
 
 ## Test Gemini
 

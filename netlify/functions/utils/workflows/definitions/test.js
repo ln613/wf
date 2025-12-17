@@ -95,12 +95,21 @@ export const testWorkflows = {
     category: 'test',
     tasks: [
       {
-        taskName: 'Ollama API',
-        inputs: {
-          model: 'gemma3',
-          prompt: 'extract the table in the image into JSON',
-          images: '/Users/nanli/Downloads/13.png',
+        forEach: {
+          imagesIn: '/Users/nanli/Downloads/caro',
+          as: 'image',
         },
+        tasks: [
+          {
+            taskName: 'Ollama API',
+            inputs: {
+              model: 'gemma3',
+              prompt: 'extract the table in the image into JSON',
+              images: '{{image}}',
+            },
+          },
+        ],
+        combineResults: 'array',
       },
     ],
   },

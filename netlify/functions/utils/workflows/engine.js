@@ -1,4 +1,20 @@
 import { getTaskByName } from '../tasks/index.js'
+import fs from 'fs'
+import path from 'path'
+
+const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp']
+
+/**
+ * Get all image files from a directory
+ * @param {string} dirPath - Path to the directory
+ * @returns {string[]} Array of image file paths
+ */
+function getImagesFromDirectory(dirPath) {
+  const files = fs.readdirSync(dirPath)
+  return files
+    .filter(file => IMAGE_EXTENSIONS.includes(path.extname(file).toLowerCase()))
+    .map(file => path.join(dirPath, file))
+}
 
 export const runWorkflow = async (workflow, inputs = {}) => {
   validateWorkflow(workflow)
@@ -7,7 +23,9 @@ export const runWorkflow = async (workflow, inputs = {}) => {
 
   for (const taskStep of workflow.tasks) {
     lastOutput = await executeTaskStep(taskStep, context)
-    context = { ...context, ...lastOutput }
+    if (lastOutput !== undefined) {
+      context = { ...context, ...lastOutput }
+    }
   }
 
   return workflow.output ? extractOutput(context, workflow.output) : lastOutput
@@ -22,9 +40,59 @@ const validateWorkflow = (workflow) => {
 }
 
 const executeTaskStep = async (taskStep, context) => {
+  // Handle forEach loop
+  if (taskStep.forEach) {
+    return executeForEach(taskStep, context)
+  }
+  
   const task = resolveTask(taskStep)
   const taskInputs = resolveTaskInputs(task, taskStep, context)
   return task.handler(taskInputs)
+}
+
+const executeForEach = async (taskStep, context) => {
+  const { forEach, tasks, combineResults } = taskStep
+  let items = []
+  
+  // Resolve the items to iterate over
+  if (forEach.imagesIn) {
+    // Get all images from directory
+    const dirPath = forEach.imagesIn
+    if (fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory()) {
+      items = getImagesFromDirectory(dirPath)
+    }
+  } else if (forEach.items) {
+    items = Array.isArray(forEach.items) ? forEach.items : [forEach.items]
+  }
+  
+  const results = []
+  const itemVar = forEach.as || 'item'
+  
+  // Execute tasks for each item
+  for (const item of items) {
+    let loopContext = { ...context, [itemVar]: item }
+    let loopOutput = null
+    
+    for (const subTask of tasks) {
+      loopOutput = await executeTaskStep(subTask, loopContext)
+      if (loopOutput !== undefined) {
+        loopContext = { ...loopContext, ...loopOutput }
+      }
+    }
+    
+    results.push(loopOutput)
+  }
+  
+  // Combine results
+  if (combineResults === 'array') {
+    return { results }
+  } else if (combineResults === 'merge') {
+    return { results: results.reduce((acc, r) => ({ ...acc, ...r }), {}) }
+  } else if (combineResults === 'flatten') {
+    return { results: results.flat() }
+  }
+  
+  return { results }
 }
 
 const resolveTask = (taskStep) => {
@@ -49,7 +117,13 @@ const resolveTaskInputs = (task, taskStep, context) => {
 
 const getInputValue = (inputName, taskStep, context) => {
   if (taskStep.inputs && taskStep.inputs[inputName] !== undefined) {
-    return taskStep.inputs[inputName]
+    const value = taskStep.inputs[inputName]
+    // Resolve template variables like {{varName}}
+    if (typeof value === 'string' && value.match(/^\{\{(\w+)\}\}$/)) {
+      const varName = value.match(/^\{\{(\w+)\}\}$/)[1]
+      return context[varName]
+    }
+    return value
   }
   return context[inputName]
 }

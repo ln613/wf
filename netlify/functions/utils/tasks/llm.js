@@ -2,6 +2,51 @@ import fetch from 'node-fetch'
 import fs from 'fs'
 import path from 'path'
 
+const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp']
+
+/**
+ * Get all image files from a directory
+ * @param {string} dirPath - Path to the directory
+ * @returns {string[]} Array of image file paths
+ */
+function getImagesFromDirectory(dirPath) {
+  const files = fs.readdirSync(dirPath)
+  return files
+    .filter(file => IMAGE_EXTENSIONS.includes(path.extname(file).toLowerCase()))
+    .map(file => path.join(dirPath, file))
+}
+
+/**
+ * Expand image paths - handles directories, individual files, and URLs
+ * @param {string|string[]} images - Image path(s), directory path(s), or URL(s)
+ * @returns {string[]} Array of individual image paths/URLs
+ */
+function expandImagePaths(images) {
+  const imageArray = Array.isArray(images) ? images : [images]
+  const expandedPaths = []
+  
+  for (const img of imageArray) {
+    // Check if it's a URL
+    if (img.startsWith('http://') || img.startsWith('https://')) {
+      expandedPaths.push(img)
+    } else if (fs.existsSync(img)) {
+      const stats = fs.statSync(img)
+      if (stats.isDirectory()) {
+        // It's a directory - get all images from it
+        expandedPaths.push(...getImagesFromDirectory(img))
+      } else {
+        // It's a file
+        expandedPaths.push(img)
+      }
+    } else {
+      // Might be base64 or invalid path, pass through
+      expandedPaths.push(img)
+    }
+  }
+  
+  return expandedPaths
+}
+
 /**
  * Convert image to base64 string
  * @param {string} imagePath - Path to the image file or URL
@@ -42,11 +87,11 @@ export async function ollamaGenerate({ model, prompt, images, ollamaUrl, stream 
     stream,
   }
   
-  // If images are provided, convert them to base64
+  // If images are provided, expand directories and convert to base64
   if (images) {
-    const imageArray = Array.isArray(images) ? images : [images]
+    const expandedImages = expandImagePaths(images)
     const base64Images = await Promise.all(
-      imageArray.map(async (img) => {
+      expandedImages.map(async (img) => {
         // Check if already base64 (no file extension or URL pattern)
         if (!img.includes('.') && !img.startsWith('http')) {
           return img // Already base64
