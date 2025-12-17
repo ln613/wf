@@ -1,11 +1,11 @@
 const getApiHost = () => {
-  return import.meta.env.DEV ? 'http://localhost:8888' : ''
+  return import.meta.env.DEV ? 'http://localhost:3001' : ''
 }
 
 const buildUrl = (type: string, params?: Record<string, string>) => {
   const host = getApiHost()
   const queryParams = new URLSearchParams({ type, ...params })
-  return `${host}/.netlify/functions/api?${queryParams}`
+  return `${host}/api?${queryParams}`
 }
 
 const handleResponse = async (response: Response) => {

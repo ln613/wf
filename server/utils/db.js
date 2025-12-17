@@ -4,9 +4,9 @@ let cachedDb = null
 let cachedClient = null
 
 const getDbName = () => {
-  const env = process.env.NETLIFY_DEV
+  const env = process.env.NODE_ENV === 'development'
     ? 'dev'
-    : process.env.CONTEXT === 'production'
+    : process.env.NODE_ENV === 'production'
       ? ''
       : 'qa'
   return env ? `wf-${env}` : 'wf'
