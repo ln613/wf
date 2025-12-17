@@ -34,7 +34,10 @@
 
 ### Tasks
 
-- Call Ollama API (deepseek-r1:8b, 'tell me a joke')
+- Call Ollama API
+  - model: gemma3
+  - prompt: extract the table in the image into JSON
+  - images: "/Users/nanli/Downloads/13.png"
 
 ## Test Gemini
 

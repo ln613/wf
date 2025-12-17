@@ -97,8 +97,9 @@ export const testWorkflows = {
       {
         taskName: 'Ollama API',
         inputs: {
-          model: 'deepseek-r1:8b',
-          prompt: 'tell me a joke',
+          model: 'gemma3',
+          prompt: 'extract the table in the image into JSON',
+          images: '/Users/nanli/Downloads/13.png',
         },
       },
     ],

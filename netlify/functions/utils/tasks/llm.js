@@ -73,18 +73,17 @@ export async function ollamaGenerate({ model, prompt, images, ollamaUrl, stream 
     
     const data = await response.json()
     
-    return {
-      success: true,
-      response: data.response,
-      model: data.model,
-      createdAt: data.created_at,
-      done: data.done,
-      context: data.context,
-      totalDuration: data.total_duration,
-      loadDuration: data.load_duration,
-      promptEvalCount: data.prompt_eval_count,
-      evalCount: data.eval_count,
-      evalDuration: data.eval_duration,
+    // Parse and return the JSON from the response field
+    // Response comes in format: ```json ... ```
+    try {
+      const responseText = data.response
+      // Extract JSON from markdown code block if present
+      const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/)
+      const jsonString = jsonMatch ? jsonMatch[1].trim() : responseText
+      return JSON.parse(jsonString)
+    } catch {
+      // If parsing fails, return the raw response
+      return data.response
     }
   } catch (error) {
     return {

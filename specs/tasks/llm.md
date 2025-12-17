@@ -17,4 +17,4 @@
 
 ### Output
 
-- return the response
+- return the parsed JSON from the response field of the result
