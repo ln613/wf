@@ -96,16 +96,20 @@ export const testWorkflows = {
     tasks: [
       {
         forEach: {
-          imagesIn: 'C:\\ww\\caro',
-          as: 'image',
+          filesIn: {
+            directory: 'C:\\ww\\h',
+            extension: '.html',
+          },
+          as: 'file',
+          contentAs: 'htmlContent',
+          readContent: true,
         },
         tasks: [
           {
             taskName: 'Ollama API',
             inputs: {
               model: 'gemma3',
-              prompt: 'extract the table in the image into JSON',
-              images: '{{image}}',
+              prompt: 'extract the table in the html file into JSON:\n\n{{htmlContent}}',
             },
           },
         ],

@@ -16,6 +16,28 @@ function getImagesFromDirectory(dirPath) {
     .map(file => path.join(dirPath, file))
 }
 
+/**
+ * Get all files with specific extension from a directory
+ * @param {string} dirPath - Path to the directory
+ * @param {string} extension - File extension (e.g., '.html')
+ * @returns {string[]} Array of file paths
+ */
+function getFilesWithExtension(dirPath, extension) {
+  const files = fs.readdirSync(dirPath)
+  return files
+    .filter(file => path.extname(file).toLowerCase() === extension.toLowerCase())
+    .map(file => path.join(dirPath, file))
+}
+
+/**
+ * Read file content
+ * @param {string} filePath - Path to the file
+ * @returns {string} File content
+ */
+function readFileContent(filePath) {
+  return fs.readFileSync(filePath, 'utf-8')
+}
+
 export const runWorkflow = async (workflow, inputs = {}) => {
   validateWorkflow(workflow)
   let context = { ...inputs }
@@ -53,6 +75,7 @@ const executeTaskStep = async (taskStep, context) => {
 const executeForEach = async (taskStep, context) => {
   const { forEach, tasks, combineResults } = taskStep
   let items = []
+  let readContent = false
   
   // Resolve the items to iterate over
   if (forEach.imagesIn) {
@@ -61,16 +84,30 @@ const executeForEach = async (taskStep, context) => {
     if (fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory()) {
       items = getImagesFromDirectory(dirPath)
     }
+  } else if (forEach.filesIn) {
+    // Get all files with specific extension from directory
+    const { directory, extension } = forEach.filesIn
+    if (fs.existsSync(directory) && fs.statSync(directory).isDirectory()) {
+      items = getFilesWithExtension(directory, extension)
+      readContent = forEach.readContent !== false // Default to true
+    }
   } else if (forEach.items) {
     items = Array.isArray(forEach.items) ? forEach.items : [forEach.items]
   }
   
   const results = []
   const itemVar = forEach.as || 'item'
+  const contentVar = forEach.contentAs || 'content'
   
   // Execute tasks for each item
   for (const item of items) {
     let loopContext = { ...context, [itemVar]: item }
+    
+    // Read file content if needed
+    if (readContent && fs.existsSync(item)) {
+      loopContext[contentVar] = readFileContent(item)
+    }
+    
     let loopOutput = null
     
     for (const subTask of tasks) {
@@ -118,10 +155,11 @@ const resolveTaskInputs = (task, taskStep, context) => {
 const getInputValue = (inputName, taskStep, context) => {
   if (taskStep.inputs && taskStep.inputs[inputName] !== undefined) {
     const value = taskStep.inputs[inputName]
-    // Resolve template variables like {{varName}}
-    if (typeof value === 'string' && value.match(/^\{\{(\w+)\}\}$/)) {
-      const varName = value.match(/^\{\{(\w+)\}\}$/)[1]
-      return context[varName]
+    // Resolve template variables like {{varName}} - supports multiple and embedded variables
+    if (typeof value === 'string' && value.includes('{{')) {
+      return value.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
+        return context[varName] !== undefined ? context[varName] : match
+      })
     }
     return value
   }

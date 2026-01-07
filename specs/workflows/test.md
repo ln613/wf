@@ -37,7 +37,7 @@
 - For every html file under C:\ww\h
   - Call Ollama API
     - model: gemma3
-    - prompt: extract the table in the html into JSON
+    - prompt: extract the table in the html file into JSON
 - Combine all results into the final JSON
 
 ## Test Gemini
