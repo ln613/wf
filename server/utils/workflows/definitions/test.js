@@ -96,7 +96,7 @@ export const testWorkflows = {
     tasks: [
       {
         forEach: {
-          imagesIn: '/Users/nanli/Downloads/caro',
+          imagesIn: 'C:\\ww\\caro',
           as: 'image',
         },
         tasks: [
