@@ -109,11 +109,20 @@ export const testWorkflows = {
             taskName: 'Ollama API',
             inputs: {
               model: 'gemma3',
-              prompt: 'extract the table in the html file into JSON:\n\n{{htmlContent}}',
+              prompt: `extract the table in the html file into JSON in the following format:
+{
+  header: { to:..., project:..., workOrder:..., date:... },
+  content: [
+    { analyte:..., result:..., RL:..., unit:..., date:..., qualifier:..., category:... },
+    ...
+  ]
+}
+
+{{htmlContent}}`,
             },
           },
         ],
-        combineResults: 'array',
+        combineResults: 'mergeContent',
       },
     ],
   },

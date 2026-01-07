@@ -38,6 +38,32 @@ function readFileContent(filePath) {
   return fs.readFileSync(filePath, 'utf-8')
 }
 
+/**
+ * Merge results by combining content arrays while keeping the first header
+ * @param {Object[]} results - Array of results with header and content
+ * @returns {Object} Merged result with combined content
+ */
+function mergeContentResults(results) {
+  if (!results || results.length === 0) {
+    return { results: { header: null, content: [] } }
+  }
+  
+  const firstResult = results[0]
+  const mergedContent = results.reduce((acc, result) => {
+    if (result && result.content && Array.isArray(result.content)) {
+      return [...acc, ...result.content]
+    }
+    return acc
+  }, [])
+  
+  return {
+    results: {
+      header: firstResult?.header || null,
+      content: mergedContent,
+    },
+  }
+}
+
 export const runWorkflow = async (workflow, inputs = {}) => {
   validateWorkflow(workflow)
   let context = { ...inputs }
@@ -127,6 +153,9 @@ const executeForEach = async (taskStep, context) => {
     return { results: results.reduce((acc, r) => ({ ...acc, ...r }), {}) }
   } else if (combineResults === 'flatten') {
     return { results: results.flat() }
+  } else if (combineResults === 'mergeContent') {
+    // Merge results by combining content arrays while keeping the first header
+    return mergeContentResults(results)
   }
   
   return { results }

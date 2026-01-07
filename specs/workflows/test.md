@@ -37,8 +37,17 @@
 - For every html file under C:\ww\h
   - Call Ollama API
     - model: gemma3
-    - prompt: extract the table in the html file into JSON
-- Combine all results into the final JSON
+    - prompt: extract the table in the html file into JSON in the following format:
+```
+{
+  header: { to:..., project:..., workOrder:..., date:... },
+  content: [
+    { analyte:..., result:..., RL:..., unit:..., date:..., qualifier:..., category:... },
+    ...
+  ]
+}
+```
+- Combine all results into the final JSON (merge the content)
 
 ## Test Gemini
 
