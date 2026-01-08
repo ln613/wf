@@ -35,12 +35,17 @@
 ### Input
 
 - model (dropdown list, call the ollama list API to get the model names on load, default to qwen3-coder or the 1st)
+- type: radio button
+  - { text: image, value: C:\ww\caro\img }
+  - { text: html, value: C:\ww\caro\html }
 
 ### Tasks
 
-- For every html file under C:\ww\h
-  - Call Ollama API with the selected model
-    - prompt: extract the table in the html file into JSON in the following format:
+- For every file under the folder for the selected type
+  - Call Ollama API:
+    - model: the selected model
+    - images: only if type is image
+    - prompt: extract the table in the file into JSON in the following format:
 ```
 {
   header: { to:..., project:..., workOrder:..., date:... },
@@ -50,6 +55,7 @@
   ]
 }
 ```
+  - if type is html, read the file content and attach to the end of the prompt
 - Combine all results into the final JSON (merge the content)
 
 ## Test Gemini

@@ -98,24 +98,63 @@ const executeTaskStep = async (taskStep, context) => {
   return task.handler(taskInputs)
 }
 
+/**
+ * Resolve template variables in a string
+ * @param {string} value - String potentially containing {{varName}} templates
+ * @param {Object} context - Context object with variable values
+ * @returns {string} Resolved string
+ */
+const resolveTemplateString = (value, context) => {
+  if (typeof value !== 'string' || !value.includes('{{')) {
+    return value
+  }
+  return value.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
+    return context[varName] !== undefined ? context[varName] : match
+  })
+}
+
 const executeForEach = async (taskStep, context) => {
   const { forEach, tasks, combineResults } = taskStep
   let items = []
   let readContent = false
+  let isImageType = false
   
   // Resolve the items to iterate over
   if (forEach.imagesIn) {
     // Get all images from directory
-    const dirPath = forEach.imagesIn
+    const dirPath = resolveTemplateString(forEach.imagesIn, context)
     if (fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory()) {
       items = getImagesFromDirectory(dirPath)
     }
+    isImageType = true
   } else if (forEach.filesIn) {
     // Get all files with specific extension from directory
-    const { directory, extension } = forEach.filesIn
-    if (fs.existsSync(directory) && fs.statSync(directory).isDirectory()) {
-      items = getFilesWithExtension(directory, extension)
+    let { directory, extension, extensionByType, readContentByType } = forEach.filesIn
+    
+    // Resolve directory template
+    directory = resolveTemplateString(directory, context)
+    
+    // Determine extension based on type if extensionByType is provided
+    if (extensionByType && context.type) {
+      const typeValue = context.type
+      extension = extensionByType[typeValue]
+      isImageType = extension === 'image'
+    }
+    
+    // Determine readContent based on type if readContentByType is provided
+    if (readContentByType && context.type) {
+      const typeValue = context.type
+      readContent = readContentByType[typeValue] === true
+    } else {
       readContent = forEach.readContent !== false // Default to true
+    }
+    
+    if (fs.existsSync(directory) && fs.statSync(directory).isDirectory()) {
+      if (isImageType) {
+        items = getImagesFromDirectory(directory)
+      } else {
+        items = getFilesWithExtension(directory, extension)
+      }
     }
   } else if (forEach.items) {
     items = Array.isArray(forEach.items) ? forEach.items : [forEach.items]
@@ -128,6 +167,11 @@ const executeForEach = async (taskStep, context) => {
   // Execute tasks for each item
   for (const item of items) {
     let loopContext = { ...context, [itemVar]: item }
+    
+    // For image type, set the imageFile variable
+    if (isImageType) {
+      loopContext.imageFile = item
+    }
     
     // Read file content if needed
     if (readContent && fs.existsSync(item)) {

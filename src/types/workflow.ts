@@ -1,3 +1,8 @@
+export interface RadioOption {
+  text: string
+  value: string
+}
+
 export interface TaskInput {
   name: string
   type: string
@@ -5,6 +10,7 @@ export interface TaskInput {
   required: boolean
   optionsApi?: string
   default?: string
+  options?: RadioOption[]
 }
 
 export interface TaskDefinition {

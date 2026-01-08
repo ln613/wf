@@ -102,24 +102,42 @@ export const testWorkflows = {
         optionsApi: 'ollamaList',
         default: 'qwen3-coder',
       },
+      {
+        name: 'type',
+        type: 'radio',
+        label: 'Type',
+        required: true,
+        options: [
+          { text: 'image', value: 'C:\\ww\\caro\\img' },
+          { text: 'html', value: 'C:\\ww\\caro\\html' },
+        ],
+        default: 'C:\\ww\\caro\\img',
+      },
     ],
     tasks: [
       {
         forEach: {
           filesIn: {
-            directory: 'C:\\ww\\h',
-            extension: '.html',
+            directory: '{{type}}',
+            extensionByType: {
+              'C:\\ww\\caro\\img': 'image',
+              'C:\\ww\\caro\\html': '.html',
+            },
           },
           as: 'file',
           contentAs: 'htmlContent',
-          readContent: true,
+          readContentByType: {
+            'C:\\ww\\caro\\img': false,
+            'C:\\ww\\caro\\html': true,
+          },
         },
         tasks: [
           {
             taskName: 'Ollama API',
             inputs: {
               model: '{{model}}',
-              prompt: `extract the table in the html file into JSON in the following format:
+              images: '{{imageFile}}',
+              prompt: `extract the table in the file into JSON in the following format:
 {
   header: { to:..., project:..., workOrder:..., date:... },
   content: [

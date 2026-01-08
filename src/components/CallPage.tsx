@@ -61,6 +61,16 @@ export const CallPage = ({ item, onBack }: CallPageProps) => {
       if (input.type === 'dropdown' && input.optionsApi) {
         loadDropdownOptions(input)
       }
+      // Set default value for radio buttons
+      if (input.type === 'radio' && input.options && input.options.length > 0) {
+        const defaultValue = input.default || input.options[0].value
+        setInputs((prev) => {
+          if (!prev[input.name]) {
+            return { ...prev, [input.name]: defaultValue }
+          }
+          return prev
+        })
+      }
     })
   }, [item.inputs, loadDropdownOptions])
 
@@ -114,12 +124,44 @@ export const CallPage = ({ item, onBack }: CallPageProps) => {
     )
   }
 
+  const renderRadioField = (input: TaskInput) => {
+    const value = inputs[input.name] || ''
+    const options = input.options || []
+
+    return (
+      <div key={input.name} className="input-group">
+        <label>
+          {input.label}
+          {input.required && <span className="required">*</span>}
+        </label>
+        <div className="radio-group">
+          {options.map((option) => (
+            <label key={option.value} className="radio-option">
+              <input
+                type="radio"
+                name={input.name}
+                value={option.value}
+                checked={value === option.value}
+                onChange={(e) => handleInputChange(input.name, e.target.value)}
+              />
+              <span>{option.text}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   const renderInputField = (input: TaskInput) => {
     const value = inputs[input.name] || ''
     const inputId = `input-${input.name}`
 
     if (input.type === 'dropdown') {
       return renderDropdownField(input)
+    }
+
+    if (input.type === 'radio') {
+      return renderRadioField(input)
     }
 
     if (input.type === 'text') {
