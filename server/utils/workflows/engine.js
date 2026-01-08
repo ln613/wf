@@ -129,7 +129,8 @@ const executeForEach = async (taskStep, context) => {
     isImageType = true
   } else if (forEach.filesIn) {
     // Get all files with specific extension from directory
-    let { directory, extension, extensionByType, readContentByType } = forEach.filesIn
+    let { directory, extension, extensionByType } = forEach.filesIn
+    const { readContentByType } = forEach
     
     // Resolve directory template
     directory = resolveTemplateString(directory, context)

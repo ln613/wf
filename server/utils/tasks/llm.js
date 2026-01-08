@@ -90,7 +90,7 @@ export async function ollamaGenerate({ model, prompt, images, ollamaUrl, stream 
   const startTime = Date.now()
 
   console.log(`[Ollama] Starting generation with model: ${model}`)
-  
+
   // Prepare the request body
   const requestBody = {
     model,
@@ -98,9 +98,17 @@ export async function ollamaGenerate({ model, prompt, images, ollamaUrl, stream 
     stream,
   }
   
+  // Check if images is a valid value (not undefined, null, empty, or unresolved template)
+  const isValidImages = (img) => {
+    if (!img) return false
+    if (typeof img === 'string' && img.includes('{{')) return false // Unresolved template
+    return true
+  }
+
   // If images are provided, expand directories and convert to base64
-  if (images) {
-    const expandedImages = expandImagePaths(images)
+  let expandedImages = []
+  if (isValidImages(images)) {
+    expandedImages = expandImagePaths(images)
     const base64Images = await Promise.all(
       expandedImages.map(async (img) => {
         // Check if already base64 (no file extension or URL pattern)
@@ -113,6 +121,12 @@ export async function ollamaGenerate({ model, prompt, images, ollamaUrl, stream 
     requestBody.images = base64Images
   }
   
+  // Log the request body (with image paths/URLs instead of base64 for readability)
+  const logBody = { ...requestBody }
+  if (expandedImages.length > 0) {
+    logBody.images = expandedImages
+  }
+  console.log(`[Ollama] Request body:`, JSON.stringify(logBody, null, 2))
   try {
     const response = await fetch(generateUrl, {
       method: 'POST',
