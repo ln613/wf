@@ -137,13 +137,13 @@ export const testWorkflows = {
             inputs: {
               model: '{{model}}',
               images: '{{imageFile}}',
-              prompt: `the table in the file contains the results of some analytes (grouped into categories) taken from a sample, convert the contents of the table into JSON format
+              prompt: `the table in the file contains the results of some analytes (grouped into categories) taken from a sample, convert the contents of the table into JSON format. DO NOT try to output values that are not in the file, if you cannot find the values for some fields, just use empty string
 
 {{htmlContent}}`,
               format: {
-                header: { to: '', project: '', workOrder: '', date: '' },
+                header: { reportedTo: '', project: '', workOrder: '', reported: '' },
                 content: [
-                  { analyte: '', result: '', RL: '', unit: '', analyzed: '', qualifier: '', category: '' },
+                  { analyte: '', result: '', RL: '', units: '', analyzed: '', qualifier: '', category: '' },
                 ],
               },
             },
