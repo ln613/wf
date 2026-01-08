@@ -60,13 +60,23 @@ const extractStyleValue = (style, property) => {
 }
 
 /**
- * Sort elements by top then left position
+ * Check if two top values are within tolerance (+1/-1)
+ * @param {number} top1 - First top value
+ * @param {number} top2 - Second top value
+ * @returns {boolean} True if within tolerance
+ */
+const isWithinTolerance = (top1, top2) => {
+  return Math.abs(top1 - top2) <= 1
+}
+
+/**
+ * Sort elements by top then left position (with +1/-1 tolerance for top)
  * @param {Array} elements - Array of elements with top and left
  * @returns {Array} Sorted array
  */
 const sortByPosition = (elements) => {
   return [...elements].sort((a, b) => {
-    if (a.top !== b.top) {
+    if (!isWithinTolerance(a.top, b.top)) {
       return a.top - b.top
     }
     return a.left - b.left
@@ -74,7 +84,7 @@ const sortByPosition = (elements) => {
 }
 
 /**
- * Group elements by their top position
+ * Group elements by their top position (with +1/-1 tolerance)
  * @param {Array} elements - Sorted array of elements
  * @returns {Map} Map of top position to array of elements
  */
@@ -82,14 +92,30 @@ const groupByTop = (elements) => {
   const groups = new Map()
 
   for (const element of elements) {
-    const topKey = element.top
-    if (!groups.has(topKey)) {
-      groups.set(topKey, [])
+    const existingKey = findExistingGroupKey(groups, element.top)
+    if (existingKey !== null) {
+      groups.get(existingKey).push(element)
+    } else {
+      groups.set(element.top, [element])
     }
-    groups.get(topKey).push(element)
   }
 
   return groups
+}
+
+/**
+ * Find existing group key within tolerance
+ * @param {Map} groups - Existing groups
+ * @param {number} top - Top value to match
+ * @returns {number|null} Existing key or null
+ */
+const findExistingGroupKey = (groups, top) => {
+  for (const key of groups.keys()) {
+    if (isWithinTolerance(key, top)) {
+      return key
+    }
+  }
+  return null
 }
 
 /**
