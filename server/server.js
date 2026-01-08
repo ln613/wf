@@ -27,6 +27,7 @@ const validateRequest = (method, type) => {
 app.get('/api', async (req, res) => {
   try {
     const { type, ...restParams } = req.query
+    console.log(`[API] GET request received - type: ${type}`)
 
     const error = validateRequest('get', type)
     if (error) {
@@ -45,9 +46,17 @@ app.get('/api', async (req, res) => {
   }
 })
 
+const getPostLogMessage = (type, body) => {
+  const baseMsg = `[API] POST request received - type: ${type}`
+  if (type === 'task' && body?.task) return `${baseMsg}, task: ${body.task}`
+  if (type === 'workflow' && body?.workflow) return `${baseMsg}, workflow: ${body.workflow}`
+  return baseMsg
+}
+
 app.post('/api', async (req, res) => {
   try {
     const { type } = req.query
+    console.log(getPostLogMessage(type, req.body))
 
     const error = validateRequest('post', type)
     if (error) {

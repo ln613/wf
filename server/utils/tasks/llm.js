@@ -87,6 +87,9 @@ async function imageToBase64(imagePath) {
 export async function ollamaGenerate({ model, prompt, images, ollamaUrl, stream = false }) {
   const baseUrl = getOllamaBaseUrl(ollamaUrl)
   const generateUrl = `${baseUrl}/generate`
+  const startTime = Date.now()
+
+  console.log(`[Ollama] Starting generation with model: ${model}`)
   
   // Prepare the request body
   const requestBody = {
@@ -125,6 +128,8 @@ export async function ollamaGenerate({ model, prompt, images, ollamaUrl, stream 
     }
     
     const data = await response.json()
+    const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2)
+    console.log(`[Ollama] Completed generation with model: ${model} in ${elapsedTime}s`)
     
     // Parse and return the JSON from the response field
     // Response comes in format: ```json ... ```
@@ -139,6 +144,8 @@ export async function ollamaGenerate({ model, prompt, images, ollamaUrl, stream 
       return data.response
     }
   } catch (error) {
+    const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2)
+    console.log(`[Ollama] Failed generation with model: ${model} after ${elapsedTime}s - ${error.message}`)
     return {
       success: false,
       error: error.message,
