@@ -45,12 +45,13 @@
   - Call Ollama API:
     - model: the selected model
     - images: only if type is image
-    - prompt: extract the table in the file into JSON in the following format:
+    - prompt: the table in the file contains the results of some analytes (grouped into categories) taken from a sample, convert the contents of the table into JSON format
+    - format:
 ```
 {
   header: { to:..., project:..., workOrder:..., date:... },
   content: [
-    { analyte:..., result:..., RL:..., unit:..., date:..., qualifier:..., category:... },
+    { analyte:..., result:..., RL:..., unit:..., analyzed:..., qualifier:..., category:... },
     ...
   ]
 }

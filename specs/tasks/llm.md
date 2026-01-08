@@ -9,10 +9,12 @@
 - images
 - ollama url (in .env file, default http://localhost:11434/api)
 - stream (default false)
+- format
 
 ### Action
 
 - if there are images, convert them to base64 string
+- if the format is JSON object, convert it to ollama json_schema
 - call the ollama API on the generate endpoint
 
 ### Output

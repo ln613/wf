@@ -192,6 +192,7 @@ export const tasks = {
         { name: 'images', type: 'string', label: 'Images (comma-separated paths or URLs)', required: false },
         { name: 'ollamaUrl', type: 'string', label: 'Ollama URL (default: http://localhost:11434/api)', required: false },
         { name: 'stream', type: 'boolean', label: 'Stream Response', required: false, default: false },
+        { name: 'format', type: 'object', label: 'JSON format (converted to json_schema)', required: false },
       ],
       outputs: ['success', 'response', 'model', 'error'],
       handler: ollamaGenerate,

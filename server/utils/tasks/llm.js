@@ -75,6 +75,41 @@ async function imageToBase64(imagePath) {
 }
 
 /**
+ * Convert a JSON object format to Ollama json_schema format
+ * @param {Object} format - The JSON object format
+ * @returns {Object} The Ollama json_schema format
+ */
+function convertToJsonSchema(format) {
+  const inferType = (value) => {
+    if (value === null) return { type: 'string' }
+    if (Array.isArray(value)) {
+      if (value.length > 0) {
+        return { type: 'array', items: inferType(value[0]) }
+      }
+      return { type: 'array', items: { type: 'string' } }
+    }
+    if (typeof value === 'object') {
+      return buildSchema(value)
+    }
+    if (typeof value === 'number') return { type: 'number' }
+    if (typeof value === 'boolean') return { type: 'boolean' }
+    return { type: 'string' }
+  }
+
+  const buildSchema = (obj) => {
+    const properties = {}
+    const required = []
+    for (const [key, value] of Object.entries(obj)) {
+      properties[key] = inferType(value)
+      required.push(key)
+    }
+    return { type: 'object', properties, required }
+  }
+
+  return buildSchema(format)
+}
+
+/**
  * Call the Ollama API generate endpoint
  * @param {Object} params - The parameters for the Ollama API call
  * @param {string} params.model - The model to use
@@ -82,9 +117,10 @@ async function imageToBase64(imagePath) {
  * @param {string|string[]} [params.images] - Image path(s) or URL(s) to include
  * @param {string} [params.ollamaUrl] - The Ollama API URL (defaults to env var or localhost)
  * @param {boolean} [params.stream] - Whether to stream the response (default false)
+ * @param {Object} [params.format] - JSON object format to convert to json_schema
  * @returns {Promise<Object>} The response from Ollama
  */
-export async function ollamaGenerate({ model, prompt, images, ollamaUrl, stream = false }) {
+export async function ollamaGenerate({ model, prompt, images, ollamaUrl, stream = false, format }) {
   const baseUrl = getOllamaBaseUrl(ollamaUrl)
   const generateUrl = `${baseUrl}/generate`
   const startTime = Date.now()
@@ -96,6 +132,11 @@ export async function ollamaGenerate({ model, prompt, images, ollamaUrl, stream 
     model,
     prompt,
     stream,
+  }
+
+  // If format is provided, convert to json_schema
+  if (format && typeof format === 'object') {
+    requestBody.format = convertToJsonSchema(format)
   }
   
   // Check if images is a valid value (not undefined, null, empty, or unresolved template)

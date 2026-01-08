@@ -137,16 +137,15 @@ export const testWorkflows = {
             inputs: {
               model: '{{model}}',
               images: '{{imageFile}}',
-              prompt: `extract the table in the file into JSON in the following format:
-{
-  header: { to:..., project:..., workOrder:..., date:... },
-  content: [
-    { analyte:..., result:..., RL:..., unit:..., date:..., qualifier:..., category:... },
-    ...
-  ]
-}
+              prompt: `the table in the file contains the results of some analytes (grouped into categories) taken from a sample, convert the contents of the table into JSON format
 
 {{htmlContent}}`,
+              format: {
+                header: { to: '', project: '', workOrder: '', date: '' },
+                content: [
+                  { analyte: '', result: '', RL: '', unit: '', analyzed: '', qualifier: '', category: '' },
+                ],
+              },
             },
           },
         ],
