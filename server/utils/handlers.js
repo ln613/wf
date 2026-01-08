@@ -1,7 +1,7 @@
 import { get, save, remove } from './db.js'
 import { ObjectId } from 'mongodb'
 import { executeWorkflow, getAllWorkflows } from './workflows/index.js'
-import { getAllTasks } from './tasks/index.js'
+import { getAllTasks, getTaskByName } from './tasks/index.js'
 
 const getTodos = async () => {
   return get('todos', {}, { sort: { createdAt: -1 } })
@@ -79,6 +79,18 @@ const validateWorkflowInput = (body) => {
   if (!body.workflow) throw new Error('Workflow name is required')
 }
 
+const runTaskHandler = async (body) => {
+  validateTaskInput(body)
+  const task = getTaskByName(body.task)
+  if (!task) throw new Error(`Task not found: ${body.task}`)
+  return task.handler(body.inputs || {})
+}
+
+const validateTaskInput = (body) => {
+  if (!body) throw new Error('Request body is required')
+  if (!body.task) throw new Error('Task name is required')
+}
+
 export const apiHandlers = {
   get: {
     todos: getTodos,
@@ -90,5 +102,6 @@ export const apiHandlers = {
     deleteTodo: deleteTodo,
     seed: seedTodos,
     workflow: runWorkflowHandler,
+    task: runTaskHandler,
   },
 }

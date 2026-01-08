@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { runWorkflow } from '../utils/api'
+import { useState, useEffect, useCallback } from 'react'
+import { runWorkflow, runTask } from '../utils/api'
 import type { SelectedItem, TaskInput } from '../types/workflow'
 import './CallPage.css'
 
@@ -8,11 +8,61 @@ interface CallPageProps {
   onBack: () => void
 }
 
+interface DropdownOptions {
+  [inputName: string]: string[]
+}
+
+const taskNameMap: Record<string, string> = {
+  ollamaList: 'Ollama List',
+}
+
 export const CallPage = ({ item, onBack }: CallPageProps) => {
   const [inputs, setInputs] = useState<Record<string, string>>({})
   const [result, setResult] = useState<unknown>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [dropdownOptions, setDropdownOptions] = useState<DropdownOptions>({})
+  const [loadingOptions, setLoadingOptions] = useState<Record<string, boolean>>({})
+
+  const loadDropdownOptions = useCallback(async (input: TaskInput) => {
+    if (!input.optionsApi) return
+
+    const taskName = taskNameMap[input.optionsApi] || input.optionsApi
+    setLoadingOptions((prev) => ({ ...prev, [input.name]: true }))
+
+    try {
+      const options = await runTask(taskName)
+      const optionsList = Array.isArray(options) ? options : []
+      setDropdownOptions((prev) => ({ ...prev, [input.name]: optionsList }))
+
+      // Set default value if available
+      if (optionsList.length > 0) {
+        const defaultValue = input.default
+          ? optionsList.find((opt) => opt.includes(input.default!)) || optionsList[0]
+          : optionsList[0]
+        setInputs((prev) => {
+          if (!prev[input.name]) {
+            return { ...prev, [input.name]: defaultValue }
+          }
+          return prev
+        })
+      }
+    } catch (err) {
+      console.error(`Failed to load options for ${input.name}:`, err)
+      setDropdownOptions((prev) => ({ ...prev, [input.name]: [] }))
+    } finally {
+      setLoadingOptions((prev) => ({ ...prev, [input.name]: false }))
+    }
+  }, [])
+
+  useEffect(() => {
+    // Load dropdown options for inputs with optionsApi
+    item.inputs.forEach((input) => {
+      if (input.type === 'dropdown' && input.optionsApi) {
+        loadDropdownOptions(input)
+      }
+    })
+  }, [item.inputs, loadDropdownOptions])
 
   const handleInputChange = (name: string, value: string) => {
     setInputs((prev) => ({ ...prev, [name]: value }))
@@ -32,9 +82,45 @@ export const CallPage = ({ item, onBack }: CallPageProps) => {
     }
   }
 
+  const renderDropdownField = (input: TaskInput) => {
+    const value = inputs[input.name] || ''
+    const inputId = `input-${input.name}`
+    const options = dropdownOptions[input.name] || []
+    const isLoading = loadingOptions[input.name]
+
+    return (
+      <div key={input.name} className="input-group">
+        <label htmlFor={inputId}>
+          {input.label}
+          {input.required && <span className="required">*</span>}
+        </label>
+        {isLoading ? (
+          <div className="loading-options">Loading options...</div>
+        ) : (
+          <select
+            id={inputId}
+            value={value}
+            onChange={(e) => handleInputChange(input.name, e.target.value)}
+          >
+            {options.length === 0 && <option value="">No options available</option>}
+            {options.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+    )
+  }
+
   const renderInputField = (input: TaskInput) => {
     const value = inputs[input.name] || ''
     const inputId = `input-${input.name}`
+
+    if (input.type === 'dropdown') {
+      return renderDropdownField(input)
+    }
 
     if (input.type === 'text') {
       return (

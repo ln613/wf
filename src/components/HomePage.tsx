@@ -37,7 +37,7 @@ export const HomePage = ({ onSelectItem }: HomePageProps) => {
       type: 'workflow',
       key: workflow.key,
       name: workflow.name,
-      inputs: [],
+      inputs: workflow.inputs || [],
     })
   }
 

@@ -3,6 +3,15 @@ import fs from 'fs'
 import path from 'path'
 
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp']
+const DEFAULT_OLLAMA_URL = 'http://localhost:11434/api'
+
+/**
+ * Get the Ollama base URL from params, env var, or default
+ * @param {string} [ollamaUrl] - Optional URL override
+ * @returns {string} The Ollama base URL
+ */
+const getOllamaBaseUrl = (ollamaUrl) =>
+  ollamaUrl || process.env.OLLAMA_URL || DEFAULT_OLLAMA_URL
 
 /**
  * Get all image files from a directory
@@ -76,8 +85,7 @@ async function imageToBase64(imagePath) {
  * @returns {Promise<Object>} The response from Ollama
  */
 export async function ollamaGenerate({ model, prompt, images, ollamaUrl, stream = false }) {
-  // Get Ollama URL from params, env var, or default
-  const baseUrl = ollamaUrl || process.env.OLLAMA_URL || 'http://localhost:11434/api'
+  const baseUrl = getOllamaBaseUrl(ollamaUrl)
   const generateUrl = `${baseUrl}/generate`
   
   // Prepare the request body
@@ -130,6 +138,42 @@ export async function ollamaGenerate({ model, prompt, images, ollamaUrl, stream 
       // If parsing fails, return the raw response
       return data.response
     }
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+    }
+  }
+}
+
+/**
+ * Call the Ollama API tags endpoint to list available models
+ * @param {Object} params - The parameters for the Ollama API call
+ * @param {string} [params.ollamaUrl] - The Ollama API URL (defaults to env var or localhost)
+ * @returns {Promise<string[]>} Array of model names
+ */
+export async function ollamaList({ ollamaUrl } = {}) {
+  const baseUrl = getOllamaBaseUrl(ollamaUrl)
+  const tagsUrl = `${baseUrl}/tags`
+
+  try {
+    const response = await fetch(tagsUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`Ollama API error: ${response.status} ${response.statusText} - ${errorText}`)
+    }
+
+    const data = await response.json()
+
+    // Extract model names from the response
+    const modelNames = data.models?.map((model) => model.name) || []
+    return modelNames
   } catch (error) {
     return {
       success: false,

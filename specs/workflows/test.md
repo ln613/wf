@@ -32,11 +32,14 @@
 
 ## Test Ollama
 
+### Input
+
+- model (dropdown list, call the ollama list API to get the model names on load, default to qwen3-coder or the 1st)
+
 ### Tasks
 
 - For every html file under C:\ww\h
-  - Call Ollama API
-    - model: gemma3
+  - Call Ollama API with the selected model
     - prompt: extract the table in the html file into JSON in the following format:
 ```
 {

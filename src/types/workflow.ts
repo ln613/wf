@@ -3,6 +3,8 @@ export interface TaskInput {
   type: string
   label: string
   required: boolean
+  optionsApi?: string
+  default?: string
 }
 
 export interface TaskDefinition {
@@ -20,6 +22,7 @@ export interface TaskCategory {
 export interface WorkflowDefinition {
   key: string
   name: string
+  inputs?: TaskInput[]
   tasks: string[]
 }
 

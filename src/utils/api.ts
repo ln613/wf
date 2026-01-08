@@ -38,3 +38,6 @@ export const getTasks = () => apiGet('tasks')
 
 export const runWorkflow = (workflow: string, inputs: Record<string, unknown>) =>
   apiPost('workflow', { workflow, inputs })
+
+export const runTask = (task: string, inputs: Record<string, unknown> = {}) =>
+  apiPost('task', { task, inputs })

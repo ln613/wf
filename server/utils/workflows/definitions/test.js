@@ -93,6 +93,16 @@ export const testWorkflows = {
   testOllama: {
     name: 'Test Ollama',
     category: 'test',
+    inputs: [
+      {
+        name: 'model',
+        type: 'dropdown',
+        label: 'Model',
+        required: true,
+        optionsApi: 'ollamaList',
+        default: 'qwen3-coder',
+      },
+    ],
     tasks: [
       {
         forEach: {
@@ -108,7 +118,7 @@ export const testWorkflows = {
           {
             taskName: 'Ollama API',
             inputs: {
-              model: 'gemma3',
+              model: '{{model}}',
               prompt: `extract the table in the html file into JSON in the following format:
 {
   header: { to:..., project:..., workOrder:..., date:... },

@@ -18,3 +18,17 @@
 ### Output
 
 - return the parsed JSON from the response field of the result
+
+## Ollama List
+
+### Input
+
+- ollama url (in .env file, default http://localhost:11434/api)
+
+### Action
+
+- call ollama endpoint /api/tags
+
+### Output
+
+- return the model names

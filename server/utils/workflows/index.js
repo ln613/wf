@@ -24,6 +24,7 @@ export const getAllWorkflows = () => {
     grouped[category].push({
       key,
       name: workflow.name,
+      inputs: workflow.inputs || [],
       tasks: workflow.tasks.map((t) => t.taskName),
     })
   }

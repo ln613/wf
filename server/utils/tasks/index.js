@@ -16,7 +16,7 @@ import {
   selectOption,
   selectFromDropdown,
 } from './browser.js'
-import { ollamaGenerate } from './llm.js'
+import { ollamaGenerate, ollamaList } from './llm.js'
 
 export const tasks = {
   email: {
@@ -195,6 +195,14 @@ export const tasks = {
       ],
       outputs: ['success', 'response', 'model', 'error'],
       handler: ollamaGenerate,
+    },
+    ollamaList: {
+      name: 'Ollama List',
+      inputs: [
+        { name: 'ollamaUrl', type: 'string', label: 'Ollama URL (default: http://localhost:11434)', required: false },
+      ],
+      outputs: ['models'],
+      handler: ollamaList,
     },
   },
 }
