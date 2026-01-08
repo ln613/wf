@@ -17,6 +17,7 @@ import {
   selectFromDropdown,
 } from './browser.js'
 import { ollamaGenerate, ollamaList } from './llm.js'
+import { parseQcHtml } from './ww.js'
 
 export const tasks = {
   email: {
@@ -182,6 +183,23 @@ export const tasks = {
       outputs: ['success', 'message'],
       handler: wait,
     },
+    readFile: {
+      name: 'Read File',
+      inputs: [
+        { name: 'filePath', type: 'string', label: 'File Path', required: true },
+        { name: 'encoding', type: 'string', label: 'Encoding (default: utf-8)', required: false, default: 'utf-8' },
+      ],
+      outputs: ['content', 'success', 'message'],
+      handler: async ({ filePath, encoding = 'utf-8' }) => {
+        const fs = await import('fs')
+        try {
+          const content = fs.readFileSync(filePath, encoding)
+          return { content, success: true, message: `File read successfully: ${filePath}` }
+        } catch (error) {
+          throw new Error(`Failed to read file: ${error.message}`)
+        }
+      },
+    },
   },
   llm: {
     ollamaGenerate: {
@@ -204,6 +222,16 @@ export const tasks = {
       ],
       outputs: ['models'],
       handler: ollamaList,
+    },
+  },
+  ww: {
+    parseQcHtml: {
+      name: 'Parse QC Html',
+      inputs: [
+        { name: 'html', type: 'text', label: 'HTML Content', required: true },
+      ],
+      outputs: ['groups'],
+      handler: parseQcHtml,
     },
   },
 }

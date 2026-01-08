@@ -166,4 +166,22 @@ export const testWorkflows = {
       },
     ],
   },
+  testWW: {
+    name: 'Test WW',
+    category: 'test',
+    tasks: [
+      {
+        taskName: 'Read File',
+        inputs: {
+          filePath: 'C:\\ww\\caro\\html\\25G3917_4 CARO-E1 2025 08 06 1620-2.html',
+        },
+      },
+      {
+        taskName: 'Parse QC Html',
+        inputs: {
+          html: '{{content}}',
+        },
+      },
+    ],
+  },
 }

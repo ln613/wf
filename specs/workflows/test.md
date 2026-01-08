@@ -59,8 +59,9 @@
   - if type is html, read the file content and attach to the end of the prompt
 - Combine all results into the final JSON (merge the content)
 
-## Test Gemini
+## Test WW
 
 ### Tasks
 
-- Open browser window (chrome, https://gemini.google.com/app)
+- read the file content as html "C:\ww\caro\html\25G3917_4 CARO-E1 2025 08 06 1620-2.html"
+- Parse QC Html
