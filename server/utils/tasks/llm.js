@@ -144,6 +144,8 @@ export async function ollamaGenerate({ model, prompt, images, ollamaUrl, stream 
     const data = await response.json()
     const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(2)
     console.log(`[Ollama] Completed generation with model: ${model} in ${elapsedTime}s`)
+    console.log(`[Ollama] Response:`)
+    console.log(data)
     
     // Parse and return the JSON from the response field
     // Response comes in format: ```json ... ```
