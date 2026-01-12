@@ -1,10 +1,10 @@
 import { JSDOM } from 'jsdom'
 
 /**
- * Parse QC HTML content and extract <p> elements sorted by position
+ * Parse QC HTML content and extract analytes and metadata
  * @param {Object} inputs
  * @param {string} inputs.html - HTML content to parse
- * @returns {Object} Result with groups of text values
+ * @returns {Object} Result with analytes list and metadata
  */
 export const parseQcHtml = async ({ html }) => {
   validateHtmlInput(html)
@@ -12,9 +12,9 @@ export const parseQcHtml = async ({ html }) => {
   const pElements = extractPElements(html)
   const sortedElements = sortByPosition(pElements)
   const groups = groupByTop(sortedElements)
-  const result = formatGroups(groups)
+  const result = processGroups(groups)
 
-  return { groups: result }
+  return result
 }
 
 /**
@@ -119,17 +119,114 @@ const findExistingGroupKey = (groups, top) => {
 }
 
 /**
- * Format groups into array of joined text strings
- * @param {Map} groups - Map of top position to elements
- * @returns {Array} Array of joined text strings
+ * Check if a group should be ignored
+ * @param {Array} texts - Array of text values in the group
+ * @returns {boolean} True if the group should be ignored
  */
-const formatGroups = (groups) => {
-  const result = []
+const shouldIgnoreGroup = (texts) => {
+  if (texts.length === 0) return true
 
-  for (const [, elements] of groups) {
-    const joinedText = elements.map((el) => el.text).join('|')
-    result.push(joinedText)
+  const firstItem = texts[0]
+  if (firstItem === 'TEST RESULTS' || firstItem === 'Analyte') return true
+  if (firstItem.startsWith('Page ') || firstItem.startsWith('Rev ')) return true
+
+  return false
+}
+
+/**
+ * Check if a group contains metadata and extract it
+ * @param {Array} texts - Array of text values in the group
+ * @returns {Object|null} Metadata object or null if not metadata
+ */
+const extractMetadata = (texts) => {
+  if (texts.length !== 4) return null
+
+  // Check for "REPORTED TO", "...", "WORK ORDER", "..." pattern
+  if (texts[0] === 'REPORTED TO' && texts[2] === 'WORK ORDER') {
+    return {
+      reportedTo: texts[1],
+      workOrder: texts[3],
+    }
   }
 
-  return result
+  // Check for "PROJECT", "...", "REPORTED", "..." pattern
+  if (texts[0] === 'PROJECT' && texts[2] === 'REPORTED') {
+    return {
+      project: texts[1],
+      reported: texts[3],
+    }
+  }
+
+  return null
+}
+
+/**
+ * Check if a group represents a category (single item)
+ * @param {Array} texts - Array of text values in the group
+ * @returns {string|null} Category name or null
+ */
+const extractCategory = (texts) => {
+  if (texts.length === 1 && texts[0]) {
+    return texts[0]
+  }
+  return null
+}
+
+/**
+ * Check if a group represents an analyte row and extract it
+ * Expected format: Analyte, Result, RL, Units, Analyzed, Qualifier (optional)
+ * @param {Array} texts - Array of text values in the group
+ * @param {string} currentCategory - Current category
+ * @returns {Object|null} Analyte object or null
+ */
+const extractAnalyte = (texts, currentCategory) => {
+  if (texts.length !== 5 && texts.length !== 6) return null
+
+  return {
+    analyte: texts[0],
+    result: texts[1],
+    rl: texts[2],
+    units: texts[3],
+    analyzed: texts[4],
+    qualifier: texts[5] || '',
+    category: currentCategory,
+  }
+}
+
+/**
+ * Process groups and extract analytes and metadata
+ * @param {Map} groups - Map of top position to elements
+ * @returns {Object} Object with analytes array and metadata object
+ */
+const processGroups = (groups) => {
+  const analytes = []
+  const metadata = {}
+  let currentCategory = ''
+
+  for (const [, elements] of groups) {
+    const texts = elements.map((el) => el.text)
+
+    if (shouldIgnoreGroup(texts)) {
+      continue
+    }
+
+    const metadataResult = extractMetadata(texts)
+    if (metadataResult) {
+      Object.assign(metadata, metadataResult)
+      continue
+    }
+
+    const category = extractCategory(texts)
+    if (category) {
+      currentCategory = category
+      continue
+    }
+
+    const analyte = extractAnalyte(texts, currentCategory)
+    if (analyte) {
+      analytes.push(analyte)
+    }
+  }
+
+  return { analytes, metadata }
 }
