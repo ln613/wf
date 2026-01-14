@@ -41,10 +41,19 @@ const extractPElements = (html) => {
     const style = p.getAttribute('style') || ''
     const top = extractStyleValue(style, 'top')
     const left = extractStyleValue(style, 'left')
-    const text = p.textContent?.trim() || ''
+    const text = normalizeText(p.textContent || '')
 
     return { top, left, text }
   })
+}
+
+/**
+ * Normalize text by replacing non-breaking spaces with regular spaces and trimming
+ * @param {string} text - Text to normalize
+ * @returns {string} Normalized text
+ */
+const normalizeText = (text) => {
+  return text.replace(/\u00A0/g, ' ').trim()
 }
 
 /**
