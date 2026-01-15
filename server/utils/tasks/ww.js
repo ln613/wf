@@ -1,6 +1,9 @@
 import { JSDOM } from 'jsdom'
 import fs from 'fs/promises'
+import fsSync from 'fs'
 import path from 'path'
+import XLSX from 'xlsx'
+import os from 'os'
 
 /**
  * Parse QC HTML content and extract analytes and metadata
@@ -155,6 +158,7 @@ const shouldIgnoreGroup = (texts) => {
 
 /**
  * Check if a group contains metadata and extract it
+ * Key mapping: "REPORTED TO" -> clientName, "WORK ORDER" -> labReportId
  * @param {Array} texts - Array of text values in the group
  * @returns {Object|null} Metadata object or null if not metadata
  */
@@ -164,8 +168,8 @@ const extractMetadata = (texts) => {
   // Check for "REPORTED TO", "...", "WORK ORDER", "..." pattern
   if (texts[0] === 'REPORTED TO' && texts[2] === 'WORK ORDER') {
     return {
-      reportedTo: texts[1],
-      workOrder: texts[3],
+      clientName: texts[1],
+      labReportId: texts[3],
     }
   }
 
@@ -253,7 +257,7 @@ const extractAnalyte = (texts, currentCategory, currentSampleInfo) => {
     analyte: texts[0],
     result: texts[1],
     rl: texts[2],
-    units: texts[3],
+    unit: texts[3],
     analyzed: texts[4],
     qualifier: texts[5] || '',
     category: currentCategory,
@@ -444,5 +448,378 @@ const combineResults = (results) => {
   const sortedAnalytes = sortAnalytes(allAnalytes)
 
   return { analytes: sortedAnalytes, metadata: mergedMetadata }
+}
+
+/**
+ * Parse QC Excel file from the download folder
+ * @returns {Object} Result with analytes list and metadata
+ */
+export const parseQcExcel = async () => {
+  const downloadFolder = getDownloadFolder()
+  const excelFile = await findLatestExcelFile(downloadFolder)
+  const workbook = readExcelFile(excelFile)
+  const worksheet = getFirstWorksheet(workbook)
+  const { metadata, sampleInfos, analyteHeaderRow } =
+    extractExcelMetadataAndSampleInfo(worksheet)
+  const analytes = extractExcelAnalytes(worksheet, analyteHeaderRow, sampleInfos)
+  const sortedAnalytes = sortAnalytes(analytes)
+
+  return { analytes: sortedAnalytes, metadata }
+}
+
+/**
+ * Get the download folder path based on OS
+ * @returns {string} Download folder path
+ */
+const getDownloadFolder = () => {
+  return path.join(os.homedir(), 'Downloads')
+}
+
+/**
+ * Find the latest Excel file in a folder
+ * @param {string} folder - Folder path
+ * @returns {string} Full path to the latest Excel file
+ */
+const findLatestExcelFile = async (folder) => {
+  const files = await fs.readdir(folder)
+  const excelFiles = files.filter((file) => isExcelFile(file))
+
+  if (excelFiles.length === 0) {
+    throw new Error('No Excel files found in download folder')
+  }
+
+  const fileStats = await Promise.all(
+    excelFiles.map(async (file) => {
+      const filePath = path.join(folder, file)
+      const stats = await fs.stat(filePath)
+      return { file, mtime: stats.mtime }
+    }),
+  )
+
+  fileStats.sort((a, b) => b.mtime - a.mtime)
+  return path.join(folder, fileStats[0].file)
+}
+
+/**
+ * Check if a file is an Excel file
+ * @param {string} filename - File name
+ * @returns {boolean} True if Excel file
+ */
+const isExcelFile = (filename) => {
+  const ext = filename.toLowerCase()
+  return ext.endsWith('.xlsx') || ext.endsWith('.xls')
+}
+
+/**
+ * Read an Excel file
+ * @param {string} filePath - Path to Excel file
+ * @returns {Object} XLSX workbook object
+ */
+const readExcelFile = (filePath) => {
+  const buffer = fsSync.readFileSync(filePath)
+  return XLSX.read(buffer, { type: 'buffer' })
+}
+
+/**
+ * Get the first worksheet from a workbook
+ * @param {Object} workbook - XLSX workbook object
+ * @returns {Object} First worksheet
+ */
+const getFirstWorksheet = (workbook) => {
+  const sheetName = workbook.SheetNames[0]
+  return workbook.Sheets[sheetName]
+}
+
+/**
+ * Get cell value from worksheet
+ * @param {Object} worksheet - XLSX worksheet
+ * @param {number} row - Row number (1-based)
+ * @param {number} col - Column number (1-based)
+ * @returns {string|number|null} Cell value or null
+ */
+const getCellValue = (worksheet, row, col) => {
+  const cellAddress = XLSX.utils.encode_cell({ r: row - 1, c: col - 1 })
+  const cell = worksheet[cellAddress]
+  return cell ? cell.v : null
+}
+
+/**
+ * Check if a row is empty
+ * @param {Object} worksheet - XLSX worksheet
+ * @param {number} row - Row number (1-based)
+ * @param {number} maxCol - Maximum column to check
+ * @returns {boolean} True if row is empty
+ */
+const isRowEmpty = (worksheet, row, maxCol) => {
+  for (let col = 1; col <= maxCol; col++) {
+    const value = getCellValue(worksheet, row, col)
+    if (value !== null && value !== '') {
+      return false
+    }
+  }
+  return true
+}
+
+/**
+ * Find the first empty row in the worksheet
+ * @param {Object} worksheet - XLSX worksheet
+ * @returns {number} Row number of first empty row
+ */
+const findFirstEmptyRow = (worksheet) => {
+  const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
+  const maxCol = range.e.c + 1
+
+  for (let row = 1; row <= range.e.r + 1; row++) {
+    if (isRowEmpty(worksheet, row, maxCol)) {
+      return row
+    }
+  }
+  return range.e.r + 2
+}
+
+/**
+ * Find the analyte header row (Analyte, Unit, Analytical Method)
+ * @param {Object} worksheet - XLSX worksheet
+ * @param {number} startRow - Row to start searching from
+ * @returns {number} Row number of analyte header
+ */
+const findAnalyteHeaderRow = (worksheet, startRow) => {
+  const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
+
+  for (let row = startRow; row <= range.e.r + 1; row++) {
+    const colA = getCellValue(worksheet, row, 1)
+    const colB = getCellValue(worksheet, row, 2)
+    const colC = getCellValue(worksheet, row, 3)
+
+    if (colA === 'Analyte' && colB === 'Unit' && colC === 'Analytical Method') {
+      return row
+    }
+  }
+  throw new Error('Analyte header row not found')
+}
+
+/**
+ * Key mapping for Excel metadata
+ * "Client Name: " -> clientName, "Lab Name: " -> labName, "Lab Report ID: " -> labReportId, "Lab Report Name: " -> labReportName
+ */
+const EXCEL_METADATA_KEY_MAP = {
+  'Client Name: ': 'clientName',
+  'Lab Name: ': 'labName',
+  'Lab Report ID: ': 'labReportId',
+  'Lab Report Name: ': 'labReportName',
+}
+
+/**
+ * Key mapping for Excel sample info
+ * "Client Sample ID" -> clientSampleId, "Lab Sample ID" -> labSampleId, Matrix -> matrix, "Sampling Location Code" -> samplingLocationCode, "Date Sampled" -> collectionDate, "Time Sampled (24h)" -> collectionTime
+ */
+const EXCEL_SAMPLE_INFO_KEY_MAP = {
+  'Client Sample ID': 'clientSampleId',
+  'Lab Sample ID': 'labSampleId',
+  Matrix: 'matrix',
+  'Sampling Location Code': 'samplingLocationCode',
+  'Date Sampled': 'collectionDate',
+  'Time Sampled (24h)': 'collectionTime',
+}
+
+/**
+ * Map a key using the provided key map
+ * @param {string} key - Original key
+ * @param {Object} keyMap - Key mapping object
+ * @returns {string} Mapped key or original key if not in map
+ */
+const mapKey = (key, keyMap) => {
+  return keyMap[key] || key
+}
+
+/**
+ * Extract metadata from rows before the first empty row
+ * Key mapping: "Client Name: " -> clientName, "Lab Name: " -> labName, "Lab Report ID: " -> labReportId, "Lab Report Name: " -> labReportName
+ * @param {Object} worksheet - XLSX worksheet
+ * @param {number} firstEmptyRow - First empty row number
+ * @returns {Object} Metadata object
+ */
+const extractExcelMetadataFromRows = (worksheet, firstEmptyRow) => {
+  const metadata = {}
+
+  for (let row = 1; row < firstEmptyRow; row++) {
+    const key = getCellValue(worksheet, row, 1)
+    const value = getCellValue(worksheet, row, 2)
+
+    if (key && value !== null) {
+      const mappedKey = mapKey(key, EXCEL_METADATA_KEY_MAP)
+      metadata[mappedKey] = value
+    }
+  }
+
+  return metadata
+}
+
+/**
+ * Extract sample info from columns starting from D, before the analyte header row
+ * Key mapping: "Client Sample ID" -> clientSampleId, "Lab Sample ID" -> labSampleId, Matrix -> matrix, "Sampling Location Code" -> samplingLocationCode, "Date Sampled" -> collectionDate, "Time Sampled (24h)" -> collectionTime
+ * @param {Object} worksheet - XLSX worksheet
+ * @param {number} analyteHeaderRow - Analyte header row number
+ * @returns {Array} Array of sample info objects with column index
+ */
+const extractExcelSampleInfoFromCols = (worksheet, analyteHeaderRow) => {
+  const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
+  const sampleInfos = []
+
+  for (let col = 4; col <= range.e.c + 1; col++) {
+    const sampleInfo = {}
+    let hasData = false
+
+    for (let row = 1; row < analyteHeaderRow; row++) {
+      const key = getCellValue(worksheet, row, 1)
+      const value = getCellValue(worksheet, row, col)
+
+      if (key && value !== null) {
+        const mappedKey = mapKey(key, EXCEL_SAMPLE_INFO_KEY_MAP)
+        sampleInfo[mappedKey] = value
+        hasData = true
+      }
+    }
+
+    if (hasData) {
+      sampleInfos.push({ col, sampleInfo })
+    }
+  }
+
+  return sampleInfos
+}
+
+/**
+ * Extract metadata and sample info from Excel worksheet
+ * @param {Object} worksheet - XLSX worksheet
+ * @returns {Object} Object with metadata, sampleInfos, and analyteHeaderRow
+ */
+const extractExcelMetadataAndSampleInfo = (worksheet) => {
+  const firstEmptyRow = findFirstEmptyRow(worksheet)
+  const metadata = extractExcelMetadataFromRows(worksheet, firstEmptyRow)
+  const analyteHeaderRow = findAnalyteHeaderRow(worksheet, firstEmptyRow)
+  const sampleInfos = extractExcelSampleInfoFromCols(worksheet, analyteHeaderRow)
+
+  return { metadata, sampleInfos, analyteHeaderRow }
+}
+
+/**
+ * Extract analytes from Excel worksheet
+ * @param {Object} worksheet - XLSX worksheet
+ * @param {number} analyteHeaderRow - Analyte header row number
+ * @param {Array} sampleInfos - Array of sample info objects with column index
+ * @returns {Array} Array of analyte objects
+ */
+const extractExcelAnalytes = (worksheet, analyteHeaderRow, sampleInfos) => {
+  const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
+  const analytes = []
+  let currentCategory = ''
+
+  for (let row = analyteHeaderRow + 1; row <= range.e.r + 1; row++) {
+    const rowData = extractExcelRowData(worksheet, row, sampleInfos)
+
+    if (rowData.isEmpty) {
+      continue
+    }
+
+    if (rowData.isLabResults) {
+      continue
+    }
+
+    if (rowData.isCategoryRow) {
+      currentCategory = rowData.category
+      continue
+    }
+
+    const rowAnalytes = createAnalytesFromRow(
+      rowData,
+      currentCategory,
+      sampleInfos,
+    )
+    analytes.push(...rowAnalytes)
+  }
+
+  return analytes
+}
+
+/**
+ * Extract row data from Excel worksheet
+ * @param {Object} worksheet - XLSX worksheet
+ * @param {number} row - Row number
+ * @param {Array} sampleInfos - Array of sample info objects with column index
+ * @returns {Object} Row data object
+ */
+const extractExcelRowData = (worksheet, row, sampleInfos) => {
+  const colA = getCellValue(worksheet, row, 1)
+  const colB = getCellValue(worksheet, row, 2)
+
+  const isEmpty = colA === null || colA === ''
+  const isLabResults = colA === 'Lab Results'
+
+  const hasOnlyFirstCell =
+    colA !== null &&
+    colA !== '' &&
+    (colB === null || colB === '') &&
+    !hasResultValues(worksheet, row, sampleInfos)
+
+  const results = {}
+  for (const { col, sampleInfo } of sampleInfos) {
+    const value = getCellValue(worksheet, row, col)
+    results[col] = value
+  }
+
+  return {
+    isEmpty,
+    isLabResults,
+    isCategoryRow: hasOnlyFirstCell,
+    category: hasOnlyFirstCell ? colA : null,
+    analyte: colA,
+    unit: colB,
+    results,
+  }
+}
+
+/**
+ * Check if row has result values in sample columns
+ * @param {Object} worksheet - XLSX worksheet
+ * @param {number} row - Row number
+ * @param {Array} sampleInfos - Array of sample info objects with column index
+ * @returns {boolean} True if has result values
+ */
+const hasResultValues = (worksheet, row, sampleInfos) => {
+  for (const { col } of sampleInfos) {
+    const value = getCellValue(worksheet, row, col)
+    if (value !== null && value !== '') {
+      return true
+    }
+  }
+  return false
+}
+
+/**
+ * Create analyte objects from row data
+ * @param {Object} rowData - Row data object
+ * @param {string} currentCategory - Current category
+ * @param {Array} sampleInfos - Array of sample info objects with column index
+ * @returns {Array} Array of analyte objects
+ */
+const createAnalytesFromRow = (rowData, currentCategory, sampleInfos) => {
+  const analytes = []
+
+  for (const { col, sampleInfo } of sampleInfos) {
+    const result = rowData.results[col]
+
+    if (result !== null && result !== '') {
+      analytes.push({
+        analyte: rowData.analyte,
+        unit: rowData.unit,
+        result,
+        category: currentCategory,
+        sampleInfo,
+      })
+    }
+  }
+
+  return analytes
 }
 

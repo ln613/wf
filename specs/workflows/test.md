@@ -68,3 +68,9 @@
 - Parse All QC Htmls:
   - in "C:\ww\caro\html"
   - contains a <p> with content <b>TEST RESULTS</b>
+
+## Test WW1
+
+### Tasks
+
+- Parse QC Excel

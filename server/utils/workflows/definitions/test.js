@@ -185,4 +185,14 @@ export const testWorkflows = {
       },
     ],
   },
+  testWW1: {
+    name: 'Test WW1',
+    category: 'test',
+    tasks: [
+      {
+        taskName: 'Parse QC Excel',
+        inputs: {},
+      },
+    ],
+  },
 }
