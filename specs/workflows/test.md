@@ -70,8 +70,9 @@
   - contains a <p> with content <b>TEST RESULTS</b>
 - Parse QC Excel (as E)
 - perform QC check with H.analytes and E.analytes
-## Test WW1
+
+## Test PDF to Images
 
 ### Tasks
 
-- Parse QC Excel
+- PDF to Images (C:\ww\c1.pdf)

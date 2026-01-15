@@ -200,13 +200,15 @@ export const testWorkflows = {
       },
     ],
   },
-  testWW1: {
-    name: 'Test WW1',
+  testPdfToImages: {
+    name: 'Test PDF to Images',
     category: 'test',
     tasks: [
       {
-        taskName: 'Parse QC Excel',
-        inputs: {},
+        taskName: 'PDF to Images',
+        inputs: {
+          pdfPath: 'C:\\ww\\c1.pdf',
+        },
       },
     ],
   },
