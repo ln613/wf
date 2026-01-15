@@ -65,10 +65,11 @@
 ### Tasks
 
 - read the file content as html 
-- Parse All QC Htmls:
+- Parse All QC Htmls (as H):
   - in "C:\ww\caro\html"
   - contains a <p> with content <b>TEST RESULTS</b>
-
+- Parse QC Excel (as E)
+- perform QC check with H.analytes and E.analytes
 ## Test WW1
 
 ### Tasks

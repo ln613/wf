@@ -64,3 +64,18 @@
 ### Output
 
 - return the Analyte list and the metadata
+
+## QC Check
+
+### Input
+
+- analyte list 1 *
+- analyte list 2 *
+
+### Action
+
+- compare the 2 analyte list, report all different, mismatch or missing values or nodes. Ignore the follwoing fields: rl, analyzed, qualifier, sampleInfo.samplingLocationCode
+
+### Output
+
+- the comparison result

@@ -823,3 +823,218 @@ const createAnalytesFromRow = (rowData, currentCategory, sampleInfos) => {
   return analytes
 }
 
+/**
+ * Perform QC check by comparing two analyte lists
+ * @param {Object} inputs
+ * @param {Array} inputs.analyteList1 - First analyte list
+ * @param {Array} inputs.analyteList2 - Second analyte list
+ * @returns {Object} Comparison result with differences
+ */
+export const qcCheck = async ({ analyteList1, analyteList2 }) => {
+  validateQcCheckInputs(analyteList1, analyteList2)
+
+  const differences = compareAnalyteLists(analyteList1, analyteList2)
+
+  return { differences, hasDifferences: differences.length > 0 }
+}
+
+/**
+ * Validate QC check inputs
+ * @param {Array} analyteList1 - First analyte list
+ * @param {Array} analyteList2 - Second analyte list
+ */
+const validateQcCheckInputs = (analyteList1, analyteList2) => {
+  if (!analyteList1) {
+    throw new Error('Analyte list 1 is required')
+  }
+  if (!analyteList2) {
+    throw new Error('Analyte list 2 is required')
+  }
+  if (!Array.isArray(analyteList1)) {
+    throw new Error('Analyte list 1 must be an array')
+  }
+  if (!Array.isArray(analyteList2)) {
+    throw new Error('Analyte list 2 must be an array')
+  }
+}
+
+/**
+ * Fields to ignore during comparison
+ */
+const IGNORED_FIELDS = ['rl', 'analyzed', 'qualifier', 'sampleInfo.samplingLocationCode']
+
+/**
+ * Check if a field should be ignored
+ * @param {string} fieldPath - Field path (e.g., 'sampleInfo.samplingLocationCode')
+ * @returns {boolean} True if field should be ignored
+ */
+const shouldIgnoreField = (fieldPath) => {
+  return IGNORED_FIELDS.includes(fieldPath)
+}
+
+/**
+ * Create a unique key for an analyte based on labSampleId, category, and analyte name
+ * @param {Object} analyte - Analyte object
+ * @returns {string} Unique key
+ */
+const createAnalyteKey = (analyte) => {
+  const labSampleId = analyte.sampleInfo?.labSampleId || ''
+  const category = analyte.category || ''
+  const analyteName = analyte.analyte || ''
+  return `${labSampleId}|${category}|${analyteName}`
+}
+
+/**
+ * Build a map of analytes by their unique key
+ * @param {Array} analytes - Array of analyte objects
+ * @returns {Map} Map of key to analyte
+ */
+const buildAnalyteMap = (analytes) => {
+  const map = new Map()
+  for (const analyte of analytes) {
+    const key = createAnalyteKey(analyte)
+    map.set(key, analyte)
+  }
+  return map
+}
+
+/**
+ * Compare two values, handling nested objects
+ * @param {*} value1 - First value
+ * @param {*} value2 - Second value
+ * @param {string} fieldPath - Current field path
+ * @returns {Array} Array of differences
+ */
+const compareValues = (value1, value2, fieldPath) => {
+  if (shouldIgnoreField(fieldPath)) {
+    return []
+  }
+
+  const differences = []
+
+  if (value1 === null || value1 === undefined) {
+    if (value2 !== null && value2 !== undefined) {
+      differences.push({
+        type: 'missing_in_list1',
+        field: fieldPath,
+        value2,
+      })
+    }
+    return differences
+  }
+
+  if (value2 === null || value2 === undefined) {
+    differences.push({
+      type: 'missing_in_list2',
+      field: fieldPath,
+      value1,
+    })
+    return differences
+  }
+
+  if (typeof value1 === 'object' && typeof value2 === 'object') {
+    return compareObjects(value1, value2, fieldPath)
+  }
+
+  if (String(value1) !== String(value2)) {
+    differences.push({
+      type: 'mismatch',
+      field: fieldPath,
+      value1,
+      value2,
+    })
+  }
+
+  return differences
+}
+
+/**
+ * Compare two objects recursively
+ * @param {Object} obj1 - First object
+ * @param {Object} obj2 - Second object
+ * @param {string} parentPath - Parent field path
+ * @returns {Array} Array of differences
+ */
+const compareObjects = (obj1, obj2, parentPath = '') => {
+  const differences = []
+  const allKeys = new Set([...Object.keys(obj1 || {}), ...Object.keys(obj2 || {})])
+
+  for (const key of allKeys) {
+    const fieldPath = parentPath ? `${parentPath}.${key}` : key
+    const diffs = compareValues(obj1?.[key], obj2?.[key], fieldPath)
+    differences.push(...diffs)
+  }
+
+  return differences
+}
+
+/**
+ * Compare two analyte objects
+ * @param {Object} analyte1 - First analyte
+ * @param {Object} analyte2 - Second analyte
+ * @param {string} key - Analyte key for identification
+ * @returns {Object|null} Difference object or null if no differences
+ */
+const compareAnalytes = (analyte1, analyte2, key) => {
+  const fieldDifferences = compareObjects(analyte1, analyte2)
+
+  if (fieldDifferences.length > 0) {
+    return {
+      key,
+      analyte: analyte1?.analyte || analyte2?.analyte,
+      labSampleId: analyte1?.sampleInfo?.labSampleId || analyte2?.sampleInfo?.labSampleId,
+      category: analyte1?.category || analyte2?.category,
+      differences: fieldDifferences,
+    }
+  }
+
+  return null
+}
+
+/**
+ * Compare two analyte lists and find all differences
+ * @param {Array} list1 - First analyte list
+ * @param {Array} list2 - Second analyte list
+ * @returns {Array} Array of difference objects
+ */
+const compareAnalyteLists = (list1, list2) => {
+  const map1 = buildAnalyteMap(list1)
+  const map2 = buildAnalyteMap(list2)
+  const allKeys = new Set([...map1.keys(), ...map2.keys()])
+  const differences = []
+
+  for (const key of allKeys) {
+    const analyte1 = map1.get(key)
+    const analyte2 = map2.get(key)
+
+    if (!analyte1) {
+      differences.push({
+        key,
+        type: 'missing_in_list1',
+        analyte: analyte2.analyte,
+        labSampleId: analyte2.sampleInfo?.labSampleId,
+        category: analyte2.category,
+      })
+      continue
+    }
+
+    if (!analyte2) {
+      differences.push({
+        key,
+        type: 'missing_in_list2',
+        analyte: analyte1.analyte,
+        labSampleId: analyte1.sampleInfo?.labSampleId,
+        category: analyte1.category,
+      })
+      continue
+    }
+
+    const diff = compareAnalytes(analyte1, analyte2, key)
+    if (diff) {
+      differences.push(diff)
+    }
+  }
+
+  return differences
+}
+

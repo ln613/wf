@@ -182,6 +182,21 @@ export const testWorkflows = {
           folder: 'C:\\ww\\caro\\html',
           filterFn: (content) => content.includes('<p') && content.includes('<b>TEST RESULTS</b>'),
         },
+        outputAs: 'H',
+        debug: true,
+      },
+      {
+        taskName: 'Parse QC Excel',
+        inputs: {},
+        outputAs: 'E',
+        debug: true,
+      },
+      {
+        taskName: 'QC Check',
+        inputs: {
+          analyteList1: '{{H.analytes}}',
+          analyteList2: '{{E.analytes}}',
+        },
       },
     ],
   },

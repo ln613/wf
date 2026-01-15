@@ -95,12 +95,44 @@ const executeTaskStep = async (taskStep, context) => {
   
   const task = resolveTask(taskStep)
   const taskInputs = resolveTaskInputs(task, taskStep, context)
-  return task.handler(taskInputs)
+  const result = await task.handler(taskInputs)
+  
+  // Handle debug logging
+  if (taskStep.debug) {
+    console.log(`[DEBUG] Task: ${taskStep.taskName}`)
+    console.log(`[DEBUG] Output:`, JSON.stringify(result, null, 2))
+  }
+  
+  // Handle outputAs - store result under a named key
+  if (taskStep.outputAs) {
+    return { [taskStep.outputAs]: result }
+  }
+  
+  return result
+}
+
+/**
+ * Get nested property value from object using dot notation
+ * @param {Object} obj - Object to get value from
+ * @param {string} path - Dot-separated path (e.g., 'H.analytes')
+ * @returns {*} Value at path or undefined
+ */
+const getNestedValue = (obj, path) => {
+  const parts = path.split('.')
+  let current = obj
+  for (const part of parts) {
+    if (current === undefined || current === null) {
+      return undefined
+    }
+    current = current[part]
+  }
+  return current
 }
 
 /**
  * Resolve template variables in a string
- * @param {string} value - String potentially containing {{varName}} templates
+ * Supports nested property access like {{H.analytes}}
+ * @param {string} value - String potentially containing {{varName}} or {{varName.prop}} templates
  * @param {Object} context - Context object with variable values
  * @returns {string} Resolved string
  */
@@ -108,8 +140,9 @@ const resolveTemplateString = (value, context) => {
   if (typeof value !== 'string' || !value.includes('{{')) {
     return value
   }
-  return value.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
-    return context[varName] !== undefined ? context[varName] : match
+  return value.replace(/\{\{([\w.]+)\}\}/g, (match, varPath) => {
+    const resolved = getNestedValue(context, varPath)
+    return resolved !== undefined ? resolved : match
   })
 }
 
@@ -229,10 +262,19 @@ const resolveTaskInputs = (task, taskStep, context) => {
 const getInputValue = (inputName, taskStep, context) => {
   if (taskStep.inputs && taskStep.inputs[inputName] !== undefined) {
     const value = taskStep.inputs[inputName]
-    // Resolve template variables like {{varName}} - supports multiple and embedded variables
+    // Resolve template variables like {{varName}} or {{varName.prop}} - supports nested access
     if (typeof value === 'string' && value.includes('{{')) {
-      return value.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
-        return context[varName] !== undefined ? context[varName] : match
+      // Check if the entire value is a single template expression
+      const singleTemplateMatch = value.match(/^\{\{([\w.]+)\}\}$/)
+      if (singleTemplateMatch) {
+        // Return the actual value (could be object, array, etc.)
+        const resolved = getNestedValue(context, singleTemplateMatch[1])
+        return resolved !== undefined ? resolved : value
+      }
+      // Otherwise, do string replacement
+      return value.replace(/\{\{([\w.]+)\}\}/g, (match, varPath) => {
+        const resolved = getNestedValue(context, varPath)
+        return resolved !== undefined ? resolved : match
       })
     }
     return value
