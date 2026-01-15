@@ -74,7 +74,23 @@
 
 ### Action
 
-- compare the 2 analyte list, report all different, mismatch or missing values or nodes. Ignore the follwoing fields: rl, analyzed, qualifier, sampleInfo.samplingLocationCode
+- compare the 2 analyte list, report all different, mismatch or missing values or nodes
+- rules for comparison:
+  - ignore the follwoing fields: rl, analyzed, qualifier, sampleInfo.samplingLocationCode
+  - for the result field: "< {value}" = "<{value}"
+  - for the collectionDate field: it can be in 2 formats, "yyyy-MM-dd" and "dd-MMM-yy"
+  - for the collectionTime field: ignore the time zone, such as "MDT"
+  - for the unit field:
+    - no difference regardless of the value for analyte ph
+    - "µg/L" = "μg/L"
+  - for the analyte field:
+    - ignore case
+    - ignore the analyte if the name starts with "Surrogate:"
+    - "... + ..." = "...+..."
+    - "... & ..." = "... and ..."
+    - "{analyte}, {type}" = "{analyte}, {type} as ..." = "{analyte}, {type} (as ...)" = "{analyte} ({type})" = "{analyte} ({type}, as ...)" = "{analyte} ({type}, by ...)" = "{type} {analyte}" = , type can be "dissolved" or "total", "as ..."/"by ..." is optional
+    - "conductivity" = "conductivity (ec)"
+    - "methyl tert-butyl ether" = "methyl tert-butyl ether (MTBE)"
 
 ### Output
 

@@ -873,25 +873,115 @@ const shouldIgnoreField = (fieldPath) => {
 }
 
 /**
- * Create a unique key for an analyte based on labSampleId, category, and analyte name
+ * Check if analyte should be ignored (e.g., surrogates)
+ * @param {string} analyteName - Analyte name
+ * @returns {boolean} True if analyte should be ignored
+ */
+const shouldIgnoreAnalyte = (analyteName) => {
+  if (typeof analyteName !== 'string') return false
+  return analyteName.toLowerCase().startsWith('surrogate:')
+}
+
+/**
+ * Normalize analyte name for comparison
+ * Rules:
+ * - Case insensitive
+ * - "... + ..." = "...+..." (normalize spaces around +)
+ * - "... & ..." = "... and ..." (normalize & to and)
+ * - "{analyte}, {type}" = "{analyte} ({type})" where type is dissolved/total
+ * - "{analyte}, {type} as ..." = "{analyte} ({type})" (remove "as ..." suffix)
+ * - "{analyte}, {type} (as ...)" = "{analyte} ({type})" (remove "(as ...)" suffix)
+ * - "{analyte} ({type}, as ...)" = "{analyte} ({type})" (remove ", as ..." in parens)
+ * - "{analyte} ({type}, by ...)" = "{analyte} ({type})" (remove ", by ..." in parens)
+ * - "{type} {analyte}" = "{analyte} ({type})" (reorder type prefix)
+ * @param {string} analyteName - Analyte name
+ * @returns {string} Normalized analyte name (lowercase)
+ */
+const normalizeAnalyteName = (analyteName) => {
+  if (typeof analyteName !== 'string') return String(analyteName).toLowerCase()
+  
+  let name = analyteName.toLowerCase().trim()
+  
+  // Normalize spaces around + symbol: "... + ..." = "...+..."
+  name = name.replace(/\s*\+\s*/g, '+')
+  
+  // Normalize & to and: "... & ..." = "... and ..."
+  name = name.replace(/\s*&\s*/g, ' and ')
+  
+  // Normalize conductivity: "conductivity (ec)" = "conductivity"
+  if (name === 'conductivity (ec)') {
+    return 'conductivity'
+  }
+  
+  // Normalize MTBE: "methyl tert-butyl ether (mtbe)" = "methyl tert-butyl ether"
+  if (name === 'methyl tert-butyl ether (mtbe)') {
+    return 'methyl tert-butyl ether'
+  }
+  
+  // Handle "{type} {analyte}" format (type as prefix)
+  const prefixMatch = name.match(/^(dissolved|total)\s+(.+)$/i)
+  if (prefixMatch) {
+    return `${prefixMatch[2].trim()} (${prefixMatch[1].toLowerCase()})`
+  }
+  
+  // Handle "{analyte}, {type} as ..." or "{analyte}, {type} (as ...)" format
+  const commaAsMatch = name.match(/^(.+),\s*(dissolved|total)(?:\s+as\s+.+|\s*\(as\s+[^)]+\))?$/i)
+  if (commaAsMatch) {
+    return `${commaAsMatch[1].trim()} (${commaAsMatch[2].toLowerCase()})`
+  }
+  
+  // Handle "{analyte} ({type})" or "{analyte} ({type}, as ...)" or "{analyte} ({type}, by ...)" format
+  const parenMatch = name.match(/^(.+)\s*\((dissolved|total)(?:,\s*(?:as|by)\s+[^)]+)?\)$/i)
+  if (parenMatch) {
+    return `${parenMatch[1].trim()} (${parenMatch[2].toLowerCase()})`
+  }
+  
+  // Handle simple "{analyte}, {type}" format
+  const simpleCommaMatch = name.match(/^(.+),\s*(dissolved|total)$/i)
+  if (simpleCommaMatch) {
+    return `${simpleCommaMatch[1].trim()} (${simpleCommaMatch[2].toLowerCase()})`
+  }
+  
+  return name
+}
+
+/**
+ * Normalize unit value: "µg/L" = "μg/L" (normalize micro symbol)
+ * @param {string} unit - Unit string
+ * @returns {string} Normalized unit
+ */
+const normalizeUnitValue = (unit) => {
+  if (typeof unit !== 'string') return String(unit)
+  // Normalize different micro symbols (µ U+00B5 and μ U+03BC)
+  return unit.replace(/\u00B5/g, '\u03BC')
+}
+
+/**
+ * Create a unique key for an analyte based on labSampleId, category, and normalized analyte name
+ * Uses normalized analyte name to match different formats like "{analyte}, {type}" and "{analyte} ({type})"
  * @param {Object} analyte - Analyte object
  * @returns {string} Unique key
  */
 const createAnalyteKey = (analyte) => {
   const labSampleId = analyte.sampleInfo?.labSampleId || ''
   const category = analyte.category || ''
-  const analyteName = analyte.analyte || ''
+  const analyteName = normalizeAnalyteName(analyte.analyte || '')
   return `${labSampleId}|${category}|${analyteName}`
 }
 
 /**
  * Build a map of analytes by their unique key
+ * Filters out analytes that should be ignored (e.g., surrogates)
  * @param {Array} analytes - Array of analyte objects
  * @returns {Map} Map of key to analyte
  */
 const buildAnalyteMap = (analytes) => {
   const map = new Map()
   for (const analyte of analytes) {
+    // Skip surrogates and other ignored analytes
+    if (shouldIgnoreAnalyte(analyte.analyte)) {
+      continue
+    }
     const key = createAnalyteKey(analyte)
     map.set(key, analyte)
   }
@@ -899,14 +989,120 @@ const buildAnalyteMap = (analytes) => {
 }
 
 /**
+ * Normalize result value: "< {value}" = "<{value}"
+ * @param {string} value - Result value
+ * @returns {string} Normalized value
+ */
+const normalizeResultValue = (value) => {
+  if (typeof value !== 'string') return String(value)
+  // Remove space after < symbol
+  return value.replace(/^<\s+/, '<')
+}
+
+/**
+ * Month name to number mapping for date parsing
+ */
+const MONTH_MAP = {
+  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+  jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+}
+
+/**
+ * Parse date from various formats to a normalized string
+ * Supports: "yyyy-MM-dd", "dd-MMM-yy"
+ * @param {string} dateStr - Date string
+ * @returns {string} Normalized date string (yyyy-MM-dd)
+ */
+const normalizeDateValue = (dateStr) => {
+  if (typeof dateStr !== 'string') return String(dateStr)
+  
+  // Try yyyy-MM-dd format
+  const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (isoMatch) {
+    return dateStr
+  }
+  
+  // Try dd-MMM-yy format (e.g., "15-Jan-26")
+  const dMyMatch = dateStr.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{2})$/)
+  if (dMyMatch) {
+    const day = dMyMatch[1].padStart(2, '0')
+    const monthName = dMyMatch[2].toLowerCase()
+    const year = dMyMatch[3]
+    const month = MONTH_MAP[monthName]
+    if (month !== undefined) {
+      // Assume 20xx for 2-digit years
+      const fullYear = parseInt(year) < 50 ? `20${year}` : `19${year}`
+      return `${fullYear}-${String(month + 1).padStart(2, '0')}-${day}`
+    }
+  }
+  
+  return dateStr
+}
+
+/**
+ * Normalize time value: ignore timezone like "MDT"
+ * @param {string} timeStr - Time string
+ * @returns {string} Normalized time string (HH:mm)
+ */
+const normalizeTimeValue = (timeStr) => {
+  if (typeof timeStr !== 'string') return String(timeStr)
+  // Remove timezone suffix (e.g., " MDT", " PST")
+  return timeStr.replace(/\s+[A-Z]{2,4}$/, '').trim()
+}
+
+/**
+ * Normalize value based on field path
+ * @param {*} value - Value to normalize
+ * @param {string} fieldPath - Field path
+ * @returns {*} Normalized value
+ */
+const normalizeValueForComparison = (value, fieldPath) => {
+  if (value === null || value === undefined) return value
+  
+  if (fieldPath === 'result') {
+    return normalizeResultValue(value)
+  }
+  if (fieldPath === 'sampleInfo.collectionDate' || fieldPath === 'collectionDate') {
+    return normalizeDateValue(value)
+  }
+  if (fieldPath === 'sampleInfo.collectionTime' || fieldPath === 'collectionTime') {
+    return normalizeTimeValue(value)
+  }
+  if (fieldPath === 'analyte') {
+    return normalizeAnalyteName(value)
+  }
+  if (fieldPath === 'unit') {
+    return normalizeUnitValue(value)
+  }
+  
+  return value
+}
+
+/**
+ * Check if unit comparison should be skipped for a given analyte
+ * @param {string} analyteName - Analyte name
+ * @returns {boolean} True if unit comparison should be skipped
+ */
+const shouldSkipUnitComparisonForAnalyte = (analyteName) => {
+  if (typeof analyteName !== 'string') return false
+  return analyteName.toLowerCase().trim() === 'ph'
+}
+
+/**
  * Compare two values, handling nested objects
  * @param {*} value1 - First value
  * @param {*} value2 - Second value
  * @param {string} fieldPath - Current field path
+ * @param {Object} context - Optional context with analyte info
  * @returns {Array} Array of differences
  */
-const compareValues = (value1, value2, fieldPath) => {
+const compareValues = (value1, value2, fieldPath, context = {}) => {
   if (shouldIgnoreField(fieldPath)) {
+    return []
+  }
+
+  // Skip unit comparison for pH analyte
+  if (fieldPath === 'unit' && shouldSkipUnitComparisonForAnalyte(context.analyteName)) {
     return []
   }
 
@@ -933,10 +1129,14 @@ const compareValues = (value1, value2, fieldPath) => {
   }
 
   if (typeof value1 === 'object' && typeof value2 === 'object') {
-    return compareObjects(value1, value2, fieldPath)
+    return compareObjects(value1, value2, fieldPath, context)
   }
 
-  if (String(value1) !== String(value2)) {
+  // Normalize values before comparison
+  const normalizedValue1 = normalizeValueForComparison(value1, fieldPath)
+  const normalizedValue2 = normalizeValueForComparison(value2, fieldPath)
+
+  if (String(normalizedValue1) !== String(normalizedValue2)) {
     differences.push({
       type: 'mismatch',
       field: fieldPath,
@@ -953,15 +1153,16 @@ const compareValues = (value1, value2, fieldPath) => {
  * @param {Object} obj1 - First object
  * @param {Object} obj2 - Second object
  * @param {string} parentPath - Parent field path
+ * @param {Object} context - Optional context with analyte info
  * @returns {Array} Array of differences
  */
-const compareObjects = (obj1, obj2, parentPath = '') => {
+const compareObjects = (obj1, obj2, parentPath = '', context = {}) => {
   const differences = []
   const allKeys = new Set([...Object.keys(obj1 || {}), ...Object.keys(obj2 || {})])
 
   for (const key of allKeys) {
     const fieldPath = parentPath ? `${parentPath}.${key}` : key
-    const diffs = compareValues(obj1?.[key], obj2?.[key], fieldPath)
+    const diffs = compareValues(obj1?.[key], obj2?.[key], fieldPath, context)
     differences.push(...diffs)
   }
 
@@ -976,12 +1177,14 @@ const compareObjects = (obj1, obj2, parentPath = '') => {
  * @returns {Object|null} Difference object or null if no differences
  */
 const compareAnalytes = (analyte1, analyte2, key) => {
-  const fieldDifferences = compareObjects(analyte1, analyte2)
+  const analyteName = analyte1?.analyte || analyte2?.analyte
+  const context = { analyteName }
+  const fieldDifferences = compareObjects(analyte1, analyte2, '', context)
 
   if (fieldDifferences.length > 0) {
     return {
       key,
-      analyte: analyte1?.analyte || analyte2?.analyte,
+      analyte: analyteName,
       labSampleId: analyte1?.sampleInfo?.labSampleId || analyte2?.sampleInfo?.labSampleId,
       category: analyte1?.category || analyte2?.category,
       differences: fieldDifferences,
