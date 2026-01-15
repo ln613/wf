@@ -18,6 +18,7 @@ import {
 } from './browser.js'
 import { ollamaGenerate, ollamaList } from './llm.js'
 import { parseQcHtml, parseAllQcHtmls, parseQcExcel, qcCheck } from './ww.js'
+import { pdfToImages } from './doc.js'
 
 export const tasks = {
   email: {
@@ -256,6 +257,18 @@ export const tasks = {
       ],
       outputs: ['differences', 'hasDifferences'],
       handler: qcCheck,
+    },
+  },
+  doc: {
+    pdfToImages: {
+      name: 'PDF to Images',
+      inputs: [
+        { name: 'pdfPath', type: 'string', label: 'PDF File Path', required: true },
+        { name: 'startPage', type: 'number', label: 'Start Page', required: false, default: 1 },
+        { name: 'endPage', type: 'number', label: 'End Page (default: last page)', required: false },
+      ],
+      outputs: ['folder'],
+      handler: pdfToImages,
     },
   },
 }

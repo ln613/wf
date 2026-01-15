@@ -15,6 +15,7 @@
     "googleapis": "^167.0.0",
     "imap-simple": "^5.1.0",
     "jsdom": "^27.4.0",
+    "jszip": "^3.10.1",
     "mailparser": "^3.9.0",
     "mongodb": "^6.3.0",
     "node-fetch": "^3.3.2",
