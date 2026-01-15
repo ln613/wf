@@ -79,7 +79,13 @@ export const testWorkflows = {
       {
         taskName: 'Click Element',
         inputs: {
-          selector: 'a[title="search"]',
+          selector: 'a[title="Search"]',
+        },
+      },
+      {
+        taskName: 'Wait',
+        inputs: {
+          seconds: 3,
         },
       },
       {

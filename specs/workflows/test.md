@@ -27,7 +27,8 @@
 - Wait 3 seconds
 - Navigate to https://wirelesswater.com/labarchive
 - Enter text ('#txtSearch1', '25G3917')
-- Click ('a[title="search"]')
+- Click ('a[title="Search"]')
+- Wait 3 seconds
 - Click ('a[href^="/LabArchive/SummaryView/"]')
 
 ## Test Ollama
