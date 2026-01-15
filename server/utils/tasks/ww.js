@@ -1,4 +1,6 @@
 import { JSDOM } from 'jsdom'
+import fs from 'fs/promises'
+import path from 'path'
 
 /**
  * Parse QC HTML content and extract analytes and metadata
@@ -54,6 +56,15 @@ const extractPElements = (html) => {
  */
 const normalizeText = (text) => {
   return text.replace(/\u00A0/g, ' ').trim()
+}
+
+/**
+ * Remove ", Continued" suffix from text
+ * @param {string} text - Text to process
+ * @returns {string} Text without ", Continued" suffix
+ */
+const removeContinuedSuffix = (text) => {
+  return text.replace(/, Continued$/i, '').trim()
 }
 
 /**
@@ -170,13 +181,59 @@ const extractMetadata = (texts) => {
 }
 
 /**
- * Check if a group represents a category (single item)
+ * Check if text matches sample info format and extract it
+ * Format: "{clientSampleId} ({labSampleId}) | Matrix: {matrix} | Sampled: {collectionDate} {collectionTime}"
+ * Date can be in formats: YYYY-MM-DD, MM/DD/YYYY, or similar
+ * ", Continued" may appear at the end and should be ignored
+ * @param {string} text - Text to check
+ * @returns {Object|null} Sample info object or null
+ */
+const extractSampleInfo = (text) => {
+  // Normalize whitespace (including newlines) to single spaces and remove ", Continued" suffix
+  const normalizedText = removeContinuedSuffix(text.replace(/\s+/g, ' ').trim())
+  // Match format: "ClientId (LabId) | Matrix: MatrixType | Sampled: Date Time"
+  const sampleInfoRegex = /^(.+?)\s*\(([^)]+)\)\s*\|\s*Matrix:\s*(.+?)\s*\|\s*Sampled:\s*([\d\-\/]+)\s+(\d{1,2}:\d{2})$/
+  const match = normalizedText.match(sampleInfoRegex)
+
+  if (match) {
+    return {
+      clientSampleId: match[1].trim(),
+      labSampleId: match[2].trim(),
+      matrix: match[3].trim(),
+      collectionDate: match[4].trim(),
+      collectionTime: match[5].trim(),
+    }
+  }
+  return null
+}
+
+/**
+ * Check if a group represents a category (single item that is not sample info)
+ * Removes ", Continued" suffix from category names
  * @param {Array} texts - Array of text values in the group
  * @returns {string|null} Category name or null
  */
 const extractCategory = (texts) => {
   if (texts.length === 1 && texts[0]) {
-    return texts[0]
+    // Remove ", Continued" suffix first
+    const cleanedText = removeContinuedSuffix(texts[0])
+    // Check if it's sample info
+    if (extractSampleInfo(texts[0])) {
+      return null
+    }
+    return cleanedText
+  }
+  return null
+}
+
+/**
+ * Check if a group represents sample info (single item)
+ * @param {Array} texts - Array of text values in the group
+ * @returns {Object|null} Sample info object or null
+ */
+const extractSampleInfoFromGroup = (texts) => {
+  if (texts.length === 1 && texts[0]) {
+    return extractSampleInfo(texts[0])
   }
   return null
 }
@@ -186,9 +243,10 @@ const extractCategory = (texts) => {
  * Expected format: Analyte, Result, RL, Units, Analyzed, Qualifier (optional)
  * @param {Array} texts - Array of text values in the group
  * @param {string} currentCategory - Current category
+ * @param {Object|null} currentSampleInfo - Current sample info
  * @returns {Object|null} Analyte object or null
  */
-const extractAnalyte = (texts, currentCategory) => {
+const extractAnalyte = (texts, currentCategory, currentSampleInfo) => {
   if (texts.length !== 5 && texts.length !== 6) return null
 
   return {
@@ -199,18 +257,38 @@ const extractAnalyte = (texts, currentCategory) => {
     analyzed: texts[4],
     qualifier: texts[5] || '',
     category: currentCategory,
+    sampleInfo: currentSampleInfo,
   }
+}
+
+/**
+ * Sort analytes by sampleInfo.labSampleId, then category, then analyte name
+ * @param {Array} analytes - Array of analyte objects
+ * @returns {Array} Sorted array
+ */
+const sortAnalytes = (analytes) => {
+  return [...analytes].sort((a, b) => {
+    const labSampleIdA = a.sampleInfo?.labSampleId || ''
+    const labSampleIdB = b.sampleInfo?.labSampleId || ''
+    const labSampleIdCompare = labSampleIdA.localeCompare(labSampleIdB)
+    if (labSampleIdCompare !== 0) return labSampleIdCompare
+    const categoryCompare = (a.category || '').localeCompare(b.category || '')
+    if (categoryCompare !== 0) return categoryCompare
+    return (a.analyte || '').localeCompare(b.analyte || '')
+  })
 }
 
 /**
  * Process groups and extract analytes and metadata
  * @param {Map} groups - Map of top position to elements
- * @returns {Object} Object with analytes array and metadata object
+ * @param {Object} initialState - Initial state with currentCategory and currentSampleInfo
+ * @returns {Object} Object with analytes array, metadata object, and final state
  */
-const processGroups = (groups) => {
+const processGroups = (groups, initialState = {}) => {
   const analytes = []
   const metadata = {}
-  let currentCategory = ''
+  let currentCategory = initialState.currentCategory || ''
+  let currentSampleInfo = initialState.currentSampleInfo || null
 
   for (const [, elements] of groups) {
     const texts = elements.map((el) => el.text)
@@ -225,17 +303,146 @@ const processGroups = (groups) => {
       continue
     }
 
+    const sampleInfo = extractSampleInfoFromGroup(texts)
+    if (sampleInfo) {
+      currentSampleInfo = sampleInfo
+      continue
+    }
+
     const category = extractCategory(texts)
     if (category) {
       currentCategory = category
       continue
     }
 
-    const analyte = extractAnalyte(texts, currentCategory)
+    const analyte = extractAnalyte(texts, currentCategory, currentSampleInfo)
     if (analyte) {
       analytes.push(analyte)
     }
   }
 
-  return { analytes, metadata }
+  const sortedAnalytes = sortAnalytes(analytes)
+
+  return {
+    analytes: sortedAnalytes,
+    metadata,
+    state: { currentCategory, currentSampleInfo },
+  }
 }
+
+/**
+ * Parse all QC HTML files in a folder
+ * @param {Object} inputs
+ * @param {string} inputs.folder - Folder path containing HTML files
+ * @param {Function} inputs.filterFn - Optional filter function to filter files
+ * @returns {Object} Combined result with analytes list and merged metadata
+ */
+export const parseAllQcHtmls = async ({ folder, filterFn }) => {
+  validateFolderInput(folder)
+
+  const htmlFiles = await getHtmlFiles(folder)
+  const filteredFiles = await filterHtmlFiles(htmlFiles, folder, filterFn)
+  const results = await parseAllFiles(filteredFiles, folder)
+  const combinedResult = combineResults(results)
+
+  return combinedResult
+}
+
+/**
+ * Validate folder input
+ * @param {string} folder - Folder path
+ */
+const validateFolderInput = (folder) => {
+  if (!folder) {
+    throw new Error('Folder path is required')
+  }
+}
+
+/**
+ * Get all HTML files in a folder
+ * @param {string} folder - Folder path
+ * @returns {Array} Array of HTML file names
+ */
+const getHtmlFiles = async (folder) => {
+  const files = await fs.readdir(folder)
+  return files.filter((file) => file.toLowerCase().endsWith('.html'))
+}
+
+/**
+ * Filter HTML files using the filter function
+ * @param {Array} files - Array of file names
+ * @param {string} folder - Folder path
+ * @param {Function} filterFn - Filter function
+ * @returns {Array} Filtered array of file names
+ */
+const filterHtmlFiles = async (files, folder, filterFn) => {
+  if (!filterFn) return files
+
+  const filteredFiles = []
+  for (const file of files) {
+    const filePath = path.join(folder, file)
+    const content = await fs.readFile(filePath, 'utf-8')
+    if (filterFn(content)) {
+      filteredFiles.push(file)
+    }
+  }
+  return filteredFiles
+}
+
+/**
+ * Parse all HTML files and collect results, carrying over state between files
+ * @param {Array} files - Array of file names
+ * @param {string} folder - Folder path
+ * @returns {Array} Array of parse results
+ */
+const parseAllFiles = async (files, folder) => {
+  const results = []
+  let state = {}
+
+  for (const file of files) {
+    const filePath = path.join(folder, file)
+    const content = await fs.readFile(filePath, 'utf-8')
+    const result = await parseQcHtmlWithState({ html: content, initialState: state })
+    results.push({ analytes: result.analytes, metadata: result.metadata })
+    state = result.state
+  }
+  return results
+}
+
+/**
+ * Parse QC HTML content with initial state (for multi-file parsing)
+ * @param {Object} inputs
+ * @param {string} inputs.html - HTML content to parse
+ * @param {Object} inputs.initialState - Initial state with currentCategory and currentSampleInfo
+ * @returns {Object} Result with analytes list, metadata, and final state
+ */
+const parseQcHtmlWithState = async ({ html, initialState = {} }) => {
+  validateHtmlInput(html)
+
+  const pElements = extractPElements(html)
+  const sortedElements = sortByPosition(pElements)
+  const groups = groupByTop(sortedElements)
+  const result = processGroups(groups, initialState)
+
+  return result
+}
+
+/**
+ * Combine results from multiple files
+ * @param {Array} results - Array of parse results
+ * @returns {Object} Combined result with sorted analytes and merged metadata
+ */
+const combineResults = (results) => {
+  const allAnalytes = []
+  const mergedMetadata = {}
+
+  for (const result of results) {
+    allAnalytes.push(...result.analytes)
+    Object.assign(mergedMetadata, result.metadata)
+  }
+
+  const sortedAnalytes = sortAnalytes(allAnalytes)
+
+  return { analytes: sortedAnalytes, metadata: mergedMetadata }
+}
+

@@ -171,15 +171,10 @@ export const testWorkflows = {
     category: 'test',
     tasks: [
       {
-        taskName: 'Read File',
+        taskName: 'Parse All QC Htmls',
         inputs: {
-          filePath: 'C:\\ww\\caro\\html\\25G3917_4 CARO-E1 2025 08 06 1620-2.html',
-        },
-      },
-      {
-        taskName: 'Parse QC Html',
-        inputs: {
-          html: '{{content}}',
+          folder: 'C:\\ww\\caro\\html',
+          filterFn: (content) => content.includes('<p') && content.includes('<b>TEST RESULTS</b>'),
         },
       },
     ],

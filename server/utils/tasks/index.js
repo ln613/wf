@@ -17,7 +17,7 @@ import {
   selectFromDropdown,
 } from './browser.js'
 import { ollamaGenerate, ollamaList } from './llm.js'
-import { parseQcHtml } from './ww.js'
+import { parseQcHtml, parseAllQcHtmls } from './ww.js'
 
 export const tasks = {
   email: {
@@ -230,8 +230,17 @@ export const tasks = {
       inputs: [
         { name: 'html', type: 'text', label: 'HTML Content', required: true },
       ],
-      outputs: ['groups'],
+      outputs: ['analytes', 'metadata'],
       handler: parseQcHtml,
+    },
+    parseAllQcHtmls: {
+      name: 'Parse All QC Htmls',
+      inputs: [
+        { name: 'folder', type: 'string', label: 'Folder Path', required: true },
+        { name: 'filterFn', type: 'function', label: 'Filter Function', required: false },
+      ],
+      outputs: ['analytes', 'metadata'],
+      handler: parseAllQcHtmls,
     },
   },
 }

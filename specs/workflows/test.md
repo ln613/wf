@@ -63,5 +63,7 @@
 
 ### Tasks
 
-- read the file content as html "C:\ww\caro\html\25G3917_4 CARO-E1 2025 08 06 1620-2.html"
-- Parse QC Html
+- read the file content as html 
+- Parse All QC Htmls:
+  - in "C:\ww\caro\html"
+  - contains a <p> with content <b>TEST RESULTS</b>
