@@ -114,6 +114,27 @@ export const testWorkflows = {
         default: 'C:\\ww\\c1.pdf',
       },
     ],
+    eventTrigger: {
+      event: {
+        type: 'watchEmail',
+        emailAccount: 'GMAIL_1',
+        pollingInterval: 10,
+      },
+      condition: {
+        subjectPattern: 'FW:\\s*CARO.*Work Order',
+        attachments: {
+          minCount: 2,
+          requiredTypes: ['excel', 'pdf'],
+        },
+      },
+      inputMapping: {
+        pdfPath: {
+          from: 'email.attachments',
+          filter: { extension: '.pdf' },
+          property: 'path',
+        },
+      },
+    },
     tasks: [
       {
         taskName: 'PDF to Htmls',
@@ -136,6 +157,7 @@ export const testWorkflows = {
         inputs: {
           labReportId: '{{H.metadata.labReportId}}',
         },
+        outputAs: 'reportResult',
       },
       {
         taskName: 'Parse QC Excel',
@@ -151,6 +173,17 @@ export const testWorkflows = {
         inputs: {
           analyteList1: '{{H.analytes}}',
           analyteList2: '{{E.analytes}}',
+        },
+        outputAs: 'qcResult',
+      },
+      {
+        taskName: 'Send Email',
+        inputs: {
+          senderAccount: 'GMAIL_1',
+          receiverAccount: 'GMAIL_1',
+          subject: 'QC result for {{H.metadata.labReportId}}',
+          body: 'QC Check Result:\n\nHas Differences: {{qcResult.hasDifferences}}\n\nDifferences:\n{{qcResult.differences}}',
+          attachments: ['{{pdfPath}}', '{{reportResult.reportPath}}'],
         },
       },
     ],

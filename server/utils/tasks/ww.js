@@ -1387,7 +1387,7 @@ const compareAnalyteLists = (list1, list2) => {
  * Generate report by logging into WirelessWater and navigating to the lab report
  * @param {Object} inputs
  * @param {string} inputs.labReportId - Lab report ID (required)
- * @returns {Object} Result with success status and connection info
+ * @returns {Object} Result with success status, labReportId, and reportPath
  */
 export const generateReport = async ({ labReportId }) => {
   validateLabReportIdInput(labReportId)
@@ -1396,21 +1396,29 @@ export const generateReport = async ({ labReportId }) => {
   await navigateToLabArchive(connectionId)
   await searchForLabReport(connectionId, labReportId)
   await openLabReportSummary(connectionId)
-  await waitForDownloadToComplete(connectionId)
+  const reportPath = await waitForDownloadToComplete(connectionId, labReportId)
   await closeBrowser(connectionId)
 
-  return { success: true, labReportId }
+  return { success: true, labReportId, reportPath }
 }
 
 /**
- * Wait for the download to complete
+ * Wait for the download to complete and return the downloaded file path
  * @param {string} connectionId - Browser connection ID
+ * @param {string} labReportId - Lab report ID to find the downloaded file
+ * @returns {string|null} Path to the downloaded report file
  */
-const waitForDownloadToComplete = async (connectionId) => {
-  await waitForDownload({
+const waitForDownloadToComplete = async (connectionId, labReportId) => {
+  const result = await waitForDownload({
     connectionId,
     timeoutSeconds: 60,
   })
+  
+  // Find the downloaded Excel file in the Downloads folder
+  const downloadFolder = getDownloadFolder()
+  const reportPath = await findExcelFileByLabReportId(downloadFolder, labReportId)
+  
+  return reportPath
 }
 
 /**

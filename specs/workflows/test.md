@@ -51,6 +51,21 @@
 
 - the path of the PDF file = C:\ww\c1.pdf
 
+### Event Trigger
+
+#### Event
+
+- watch email GMAIL_1
+
+#### Trigger Condition
+
+- the subject is like "FW: CARO ... Work Order ..."
+- there are 2 attachments, 1 excel file and 1 pdf
+
+#### WF Input
+
+- the path of the pdf file
+
 ### Tasks
 
 - PDF to Htmls
@@ -60,3 +75,10 @@
 - Generate report with H.metadata.labReportId
 - Parse QC Excel with H.metadata.labReportId (as E)
 - if E is not null, perform QC check with H.analytes and E.analytes
+- send email:
+  - sender: GMAIL_1
+  - receiver: GMAIL_1
+  - subject: QC result for {H.metadata.labReportId}
+  - body: {the QC check result}
+  - attachment: the pdf file, the generated report
+

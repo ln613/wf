@@ -10,6 +10,8 @@ import express from 'express'
 import cors from 'cors'
 import { connectDB } from './utils/db.js'
 import { apiHandlers } from './utils/handlers.js'
+import { registerAllEventTriggers } from './utils/workflows/triggers.js'
+import { stopAllBackgroundTasks } from './utils/background/index.js'
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -75,6 +77,24 @@ app.post('/api', async (req, res) => {
   }
 })
 
+// Initialize event triggers and start background tasks
+const initializeBackgroundServices = () => {
+  console.log('[Server] Initializing background services...')
+  registerAllEventTriggers()
+  console.log('[Server] Background services initialized')
+}
+
+// Graceful shutdown handler
+const handleShutdown = () => {
+  console.log('[Server] Shutting down...')
+  stopAllBackgroundTasks()
+  process.exit(0)
+}
+
+process.on('SIGINT', handleShutdown)
+process.on('SIGTERM', handleShutdown)
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`)
+  initializeBackgroundServices()
 })

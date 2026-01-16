@@ -16,11 +16,16 @@ export const getLatestEmailWithAttachment = async ({ emailAccount }) => {
 // Keep old function name for backward compatibility
 export const getLatestEmail = getLatestEmailWithAttachment
 
-export const sendEmail = async ({ senderAccount, receiverEmail, subject, body }) => {
-  validateSendEmailInput({ senderAccount, receiverEmail, subject, body })
+export const sendEmail = async ({ senderAccount, receiverEmail, receiverAccount, subject, body, attachments }) => {
+  validateSendEmailInput({ senderAccount, receiverEmail, receiverAccount, subject, body })
   const credentials = getGmailAppPasswordCredentials(senderAccount)
   console.log('[sendEmail] Got credentials for:', credentials.email)
-  return sendEmailWithNodemailer(credentials, receiverEmail, subject, body)
+  
+  // Resolve receiver email - can be direct email or env var reference
+  const resolvedReceiverEmail = resolveReceiverEmail(receiverEmail, receiverAccount)
+  console.log('[sendEmail] Sending to:', resolvedReceiverEmail)
+  
+  return sendEmailWithNodemailer(credentials, resolvedReceiverEmail, subject, body, attachments)
 }
 
 const validateEmailAccount = (emailAccount) => {
@@ -29,15 +34,35 @@ const validateEmailAccount = (emailAccount) => {
   }
 }
 
-const validateSendEmailInput = ({ senderAccount, receiverEmail, subject, body }) => {
+const validateSendEmailInput = ({ senderAccount, receiverEmail, receiverAccount, subject, body }) => {
   const errors = []
   if (!senderAccount) errors.push('Sender account is required')
-  if (!receiverEmail) errors.push('Receiver email is required')
+  if (!receiverEmail && !receiverAccount) errors.push('Receiver email or receiver account is required')
   if (!subject) errors.push('Subject is required')
   if (!body) errors.push('Email body is required')
   if (errors.length > 0) {
     throw new Error(errors.join(', '))
   }
+}
+
+/**
+ * Resolve receiver email from direct email or env var reference
+ * @param {string} receiverEmail - Direct email address
+ * @param {string} receiverAccount - Environment variable name for email account
+ * @returns {string} Resolved email address
+ */
+const resolveReceiverEmail = (receiverEmail, receiverAccount) => {
+  if (receiverEmail) {
+    return receiverEmail
+  }
+  if (receiverAccount) {
+    const email = process.env[receiverAccount]
+    if (!email) {
+      throw new Error(`Email not found for receiver account ${receiverAccount}`)
+    }
+    return email
+  }
+  throw new Error('No receiver email or account specified')
 }
 
 /**
@@ -62,9 +87,10 @@ const getGmailAppPasswordCredentials = (accountEnvVar) => {
  * @param {string} to - Recipient email address
  * @param {string} subject - Email subject
  * @param {string} body - Email body (plain text)
+ * @param {Array} attachments - Optional array of attachment paths or objects
  * @returns {Object} Result with success status
  */
-const sendEmailWithNodemailer = async (credentials, to, subject, body) => {
+const sendEmailWithNodemailer = async (credentials, to, subject, body, attachments) => {
   console.log('[sendEmailWithNodemailer] Creating transporter...')
   
   const transporter = nodemailer.createTransport({
@@ -82,11 +108,44 @@ const sendEmailWithNodemailer = async (credentials, to, subject, body) => {
     text: body,
   }
 
+  // Add attachments if provided
+  if (attachments && attachments.length > 0) {
+    mailOptions.attachments = formatAttachments(attachments)
+    console.log(`[sendEmailWithNodemailer] Adding ${mailOptions.attachments.length} attachment(s)`)
+  }
+
   console.log('[sendEmailWithNodemailer] Sending email...')
   await transporter.sendMail(mailOptions)
 
   console.log('[sendEmailWithNodemailer] Email sent successfully')
   return { success: true, message: 'Email sent successfully' }
+}
+
+/**
+ * Format attachments for nodemailer
+ * @param {Array} attachments - Array of file paths or attachment objects
+ * @returns {Array} Formatted attachments for nodemailer
+ */
+const formatAttachments = (attachments) => {
+  return attachments.map((attachment) => {
+    // If it's a string, treat it as a file path
+    if (typeof attachment === 'string') {
+      return {
+        filename: path.basename(attachment),
+        path: attachment,
+      }
+    }
+    // If it's an object with path property
+    if (attachment.path) {
+      return {
+        filename: attachment.filename || path.basename(attachment.path),
+        path: attachment.path,
+        contentType: attachment.contentType,
+      }
+    }
+    // Return as-is if already in nodemailer format
+    return attachment
+  })
 }
 
 /**

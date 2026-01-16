@@ -262,24 +262,54 @@ const resolveTaskInputs = (task, taskStep, context) => {
 const getInputValue = (inputName, taskStep, context) => {
   if (taskStep.inputs && taskStep.inputs[inputName] !== undefined) {
     const value = taskStep.inputs[inputName]
-    // Resolve template variables like {{varName}} or {{varName.prop}} - supports nested access
-    if (typeof value === 'string' && value.includes('{{')) {
-      // Check if the entire value is a single template expression
-      const singleTemplateMatch = value.match(/^\{\{([\w.]+)\}\}$/)
-      if (singleTemplateMatch) {
-        // Return the actual value (could be object, array, etc.)
-        const resolved = getNestedValue(context, singleTemplateMatch[1])
-        return resolved !== undefined ? resolved : value
-      }
-      // Otherwise, do string replacement
-      return value.replace(/\{\{([\w.]+)\}\}/g, (match, varPath) => {
-        const resolved = getNestedValue(context, varPath)
-        return resolved !== undefined ? resolved : match
-      })
-    }
-    return value
+    return resolveValue(value, context)
   }
   return context[inputName]
+}
+
+/**
+ * Resolve a value, handling strings with templates, arrays, and objects
+ * @param {*} value - Value to resolve
+ * @param {Object} context - Context object with variable values
+ * @returns {*} Resolved value
+ */
+const resolveValue = (value, context) => {
+  // Handle arrays - resolve each element
+  if (Array.isArray(value)) {
+    return value.map(item => resolveValue(item, context))
+  }
+  
+  // Handle strings with template variables
+  if (typeof value === 'string' && value.includes('{{')) {
+    // Check if the entire value is a single template expression
+    const singleTemplateMatch = value.match(/^\{\{([\w.]+)\}\}$/)
+    if (singleTemplateMatch) {
+      // Return the actual value (could be object, array, etc.)
+      const resolved = getNestedValue(context, singleTemplateMatch[1])
+      return resolved !== undefined ? resolved : value
+    }
+    // Otherwise, do string replacement - convert objects to JSON strings
+    return value.replace(/\{\{([\w.]+)\}\}/g, (match, varPath) => {
+      const resolved = getNestedValue(context, varPath)
+      if (resolved === undefined) return match
+      // Convert objects/arrays to JSON string for string interpolation
+      if (typeof resolved === 'object' && resolved !== null) {
+        return JSON.stringify(resolved, null, 2)
+      }
+      return resolved
+    })
+  }
+  
+  // Handle objects - resolve each property value
+  if (typeof value === 'object' && value !== null) {
+    const resolved = {}
+    for (const [key, val] of Object.entries(value)) {
+      resolved[key] = resolveValue(val, context)
+    }
+    return resolved
+  }
+  
+  return value
 }
 
 const extractOutput = (context, outputDef) => {

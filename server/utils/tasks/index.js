@@ -34,9 +34,11 @@ export const tasks = {
       name: 'Send Email',
       inputs: [
         { name: 'senderAccount', type: 'string', label: 'Sender Account (env var)', required: true },
-        { name: 'receiverEmail', type: 'string', label: 'Receiver Email', required: true },
+        { name: 'receiverEmail', type: 'string', label: 'Receiver Email', required: false },
+        { name: 'receiverAccount', type: 'string', label: 'Receiver Account (env var)', required: false },
         { name: 'subject', type: 'string', label: 'Subject', required: true },
         { name: 'body', type: 'text', label: 'Email Body', required: true },
+        { name: 'attachments', type: 'array', label: 'Attachments (file paths)', required: false },
       ],
       outputs: ['success', 'message'],
       handler: sendEmail,
@@ -265,7 +267,7 @@ export const tasks = {
       inputs: [
         { name: 'labReportId', type: 'string', label: 'Lab Report ID', required: true },
       ],
-      outputs: ['success', 'connectionId', 'labReportId'],
+      outputs: ['success', 'labReportId', 'reportPath'],
       handler: generateReport,
     },
   },
