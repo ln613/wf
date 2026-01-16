@@ -13,11 +13,9 @@ export const getLatestEmail = async ({ emailAccount }) => {
 
 export const sendEmail = async ({ senderAccount, receiverEmail, subject, body }) => {
   validateSendEmailInput({ senderAccount, receiverEmail, subject, body })
-  const credentials = getGmailCredentials(senderAccount)
+  const credentials = getGmailAppPasswordCredentials(senderAccount)
   console.log('[sendEmail] Got credentials for:', credentials.email)
-  const gmail = await createGmailClient(credentials)
-  console.log('[sendEmail] Gmail client created')
-  return sendGmailMessage(gmail, credentials.email, receiverEmail, subject, body)
+  return sendEmailWithNodemailer(credentials, receiverEmail, subject, body)
 }
 
 const validateEmailAccount = (emailAccount) => {
@@ -35,6 +33,55 @@ const validateSendEmailInput = ({ senderAccount, receiverEmail, subject, body })
   if (errors.length > 0) {
     throw new Error(errors.join(', '))
   }
+}
+
+/**
+ * Get Gmail credentials for app password authentication
+ * Environment variables: {accountEnvVar} = email, {accountEnvVar}_APP_PASSWORD = app password
+ * @param {string} accountEnvVar - Environment variable prefix
+ * @returns {Object} Credentials with email and appPassword
+ */
+const getGmailAppPasswordCredentials = (accountEnvVar) => {
+  const email = process.env[accountEnvVar]
+  const appPassword = process.env[`${accountEnvVar}_APP_PASSWORD`]
+
+  if (!email) throw new Error(`Email not found for ${accountEnvVar}`)
+  if (!appPassword) throw new Error(`App password not found for ${accountEnvVar}_APP_PASSWORD`)
+
+  return { email, appPassword }
+}
+
+/**
+ * Send email using nodemailer with Gmail SMTP and app password
+ * @param {Object} credentials - Gmail credentials with email and appPassword
+ * @param {string} to - Recipient email address
+ * @param {string} subject - Email subject
+ * @param {string} body - Email body (plain text)
+ * @returns {Object} Result with success status
+ */
+const sendEmailWithNodemailer = async (credentials, to, subject, body) => {
+  console.log('[sendEmailWithNodemailer] Creating transporter...')
+  
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: credentials.email,
+      pass: credentials.appPassword,
+    },
+  })
+
+  const mailOptions = {
+    from: credentials.email,
+    to,
+    subject,
+    text: body,
+  }
+
+  console.log('[sendEmailWithNodemailer] Sending email...')
+  await transporter.sendMail(mailOptions)
+
+  console.log('[sendEmailWithNodemailer] Email sent successfully')
+  return { success: true, message: 'Email sent successfully' }
 }
 
 const getGmailCredentials = (accountEnvVar) => {
