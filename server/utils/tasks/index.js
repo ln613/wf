@@ -1,4 +1,4 @@
-import { getLatestEmail, sendEmail } from './email.js'
+import { getLatestEmailWithAttachment, sendEmail } from './email.js'
 import {
   wait,
   navigate,
@@ -22,13 +22,13 @@ import { pdfToImages, pdfToHtmls } from './doc.js'
 
 export const tasks = {
   email: {
-    getLatestEmail: {
-      name: 'Get Latest Email',
+    getLatestEmailWithAttachment: {
+      name: 'Get Latest Email with attachment',
       inputs: [
         { name: 'emailAccount', type: 'string', label: 'Email Account (env var)', required: true },
       ],
-      outputs: ['sender', 'date', 'subject', 'body'],
-      handler: getLatestEmail,
+      outputs: ['sender', 'date', 'subject', 'body', 'attachments'],
+      handler: getLatestEmailWithAttachment,
     },
     sendEmail: {
       name: 'Send Email',

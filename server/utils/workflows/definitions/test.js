@@ -4,7 +4,7 @@ export const testWorkflows = {
     category: 'test',
     tasks: [
       {
-        taskName: 'Get Latest Email',
+        taskName: 'Get Latest Email with attachment',
         inputs: {
           emailAccount: 'GMAIL_1',
         },

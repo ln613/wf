@@ -4,7 +4,7 @@
 
 ### Tasks
 
-- Get Latest Email (GMAIL_1)
+- Get Latest Email with attachment (GMAIL_1)
 
 ## Test Send Email
 

@@ -1,15 +1,20 @@
-import { google } from 'googleapis'
 import nodemailer from 'nodemailer'
+import Imap from 'imap'
+import { simpleParser } from 'mailparser'
+import fs from 'fs/promises'
+import path from 'path'
+import os from 'os'
 
-export const getLatestEmail = async ({ emailAccount }) => {
-  console.log('[getLatestEmail] Starting with account:', emailAccount)
+export const getLatestEmailWithAttachment = async ({ emailAccount }) => {
+  console.log('[getLatestEmailWithAttachment] Starting with account:', emailAccount)
   validateEmailAccount(emailAccount)
-  const credentials = getGmailCredentials(emailAccount)
-  console.log('[getLatestEmail] Got credentials for:', credentials.email)
-  const gmail = await createGmailClient(credentials)
-  console.log('[getLatestEmail] Gmail client created')
-  return fetchLatestGmailMessage(gmail)
+  const credentials = getGmailAppPasswordCredentials(emailAccount)
+  console.log('[getLatestEmailWithAttachment] Got credentials for:', credentials.email)
+  return fetchLatestEmailWithImap(credentials)
 }
+
+// Keep old function name for backward compatibility
+export const getLatestEmail = getLatestEmailWithAttachment
 
 export const sendEmail = async ({ senderAccount, receiverEmail, subject, body }) => {
   validateSendEmailInput({ senderAccount, receiverEmail, subject, body })
@@ -84,131 +89,159 @@ const sendEmailWithNodemailer = async (credentials, to, subject, body) => {
   return { success: true, message: 'Email sent successfully' }
 }
 
-const getGmailCredentials = (accountEnvVar) => {
-  const email = process.env[accountEnvVar]
-  const clientId = process.env[`${accountEnvVar}_CLIENT_ID`]
-  const clientSecret = process.env[`${accountEnvVar}_CLIENT_SECRET`]
-  const refreshToken = process.env[`${accountEnvVar}_REFRESH_TOKEN`]
+/**
+ * Fetch the latest email using IMAP with Gmail app password
+ * @param {Object} credentials - Gmail credentials with email and appPassword
+ * @returns {Object} Email with sender, date, subject, and body
+ */
+const fetchLatestEmailWithImap = async (credentials) => {
+  console.log('[fetchLatestEmailWithImap] Connecting to Gmail IMAP...')
+  
+  return new Promise((resolve, reject) => {
+    const imap = new Imap({
+      user: credentials.email,
+      password: credentials.appPassword,
+      host: 'imap.gmail.com',
+      port: 993,
+      tls: true,
+      tlsOptions: { rejectUnauthorized: false },
+    })
 
-  if (!email) throw new Error(`Email not found for ${accountEnvVar}`)
-  if (!clientId) throw new Error(`Client ID not found for ${accountEnvVar}`)
-  if (!clientSecret) throw new Error(`Client Secret not found for ${accountEnvVar}`)
-  if (!refreshToken) throw new Error(`Refresh Token not found for ${accountEnvVar}`)
+    imap.once('ready', () => {
+      console.log('[fetchLatestEmailWithImap] IMAP connection ready')
+      openInboxAndFetchLatest(imap, resolve, reject)
+    })
 
-  return { email, clientId, clientSecret, refreshToken }
-}
+    imap.once('error', (err) => {
+      console.error('[fetchLatestEmailWithImap] IMAP error:', err.message)
+      reject(err)
+    })
 
-const createGmailClient = async (credentials) => {
-  const oauth2Client = createOAuth2Client(credentials)
-  oauth2Client.setCredentials({ refresh_token: credentials.refreshToken })
-  console.log('[createGmailClient] OAuth2 client configured')
-  return google.gmail({ version: 'v1', auth: oauth2Client })
-}
+    imap.once('end', () => {
+      console.log('[fetchLatestEmailWithImap] IMAP connection ended')
+    })
 
-const createOAuth2Client = (credentials) => {
-  return new google.auth.OAuth2(
-    credentials.clientId,
-    credentials.clientSecret,
-    'https://developers.google.com/oauthplayground'
-  )
-}
-
-const fetchLatestGmailMessage = async (gmail) => {
-  console.log('[fetchLatestGmailMessage] Listing messages...')
-  const listResponse = await gmail.users.messages.list({
-    userId: 'me',
-    maxResults: 1,
+    imap.connect()
   })
-
-  const messages = listResponse.data.messages
-  if (!messages || messages.length === 0) {
-    console.log('[fetchLatestGmailMessage] No messages found')
-    return { sender: null, date: null, subject: null, body: null }
-  }
-
-  console.log('[fetchLatestGmailMessage] Getting message details for:', messages[0].id)
-  const message = await gmail.users.messages.get({
-    userId: 'me',
-    id: messages[0].id,
-    format: 'full',
-  })
-
-  console.log('[fetchLatestGmailMessage] Parsing message...')
-  return parseGmailMessage(message.data)
 }
 
-const parseGmailMessage = (message) => {
-  const headers = message.payload.headers || []
-  const sender = getHeader(headers, 'From')
-  const date = getHeader(headers, 'Date')
-  const subject = getHeader(headers, 'Subject')
-  const body = extractGmailBody(message.payload)
-
-  console.log('[parseGmailMessage] Parsed - Subject:', subject)
-  return { sender, date, subject, body }
-}
-
-const getHeader = (headers, name) => {
-  const header = headers.find((h) => h.name.toLowerCase() === name.toLowerCase())
-  return header?.value || null
-}
-
-const extractGmailBody = (payload) => {
-  if (payload.body?.data) {
-    return decodeBase64(payload.body.data)
-  }
-
-  if (payload.parts) {
-    const textPart = findTextPart(payload.parts)
-    if (textPart?.body?.data) {
-      return decodeBase64(textPart.body.data)
+/**
+ * Open inbox and fetch the latest email
+ * @param {Object} imap - IMAP connection
+ * @param {Function} resolve - Promise resolve function
+ * @param {Function} reject - Promise reject function
+ */
+const openInboxAndFetchLatest = (imap, resolve, reject) => {
+  imap.openBox('INBOX', true, (err, box) => {
+    if (err) {
+      imap.end()
+      return reject(err)
     }
-  }
 
-  return ''
-}
+    console.log('[openInboxAndFetchLatest] Inbox opened, total messages:', box.messages.total)
 
-const findTextPart = (parts) => {
-  for (const part of parts) {
-    if (part.mimeType === 'text/plain') return part
-    if (part.parts) {
-      const found = findTextPart(part.parts)
-      if (found) return found
+    if (box.messages.total === 0) {
+      imap.end()
+      return resolve({ sender: null, date: null, subject: null, body: null })
     }
-  }
-  return parts.find((p) => p.mimeType === 'text/html') || null
+
+    // Fetch the latest message (highest sequence number)
+    const fetchRange = `${box.messages.total}:${box.messages.total}`
+    const fetch = imap.seq.fetch(fetchRange, {
+      bodies: '',
+      struct: true,
+    })
+
+    fetch.on('message', (msg) => {
+      handleImapMessage(msg, imap, resolve, reject)
+    })
+
+    fetch.once('error', (err) => {
+      imap.end()
+      reject(err)
+    })
+
+    fetch.once('end', () => {
+      console.log('[openInboxAndFetchLatest] Fetch completed')
+    })
+  })
 }
 
-const decodeBase64 = (data) => {
-  const decoded = Buffer.from(data, 'base64').toString('utf-8')
-  return decoded
-}
+/**
+ * Handle an IMAP message and parse it
+ * @param {Object} msg - IMAP message
+ * @param {Object} imap - IMAP connection
+ * @param {Function} resolve - Promise resolve function
+ * @param {Function} reject - Promise reject function
+ */
+const handleImapMessage = (msg, imap, resolve, reject) => {
+  let buffer = ''
 
-const sendGmailMessage = async (gmail, from, to, subject, body) => {
-  console.log('[sendGmailMessage] Preparing email...')
-  const message = createMimeMessage(from, to, subject, body)
-  const encodedMessage = Buffer.from(message).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-
-  console.log('[sendGmailMessage] Sending email...')
-  await gmail.users.messages.send({
-    userId: 'me',
-    requestBody: {
-      raw: encodedMessage,
-    },
+  msg.on('body', (stream) => {
+    stream.on('data', (chunk) => {
+      buffer += chunk.toString('utf8')
+    })
   })
 
-  console.log('[sendGmailMessage] Email sent successfully')
-  return { success: true, message: 'Email sent successfully' }
+  msg.once('end', async () => {
+    try {
+      console.log('[handleImapMessage] Parsing email...')
+      const parsed = await simpleParser(buffer)
+      
+      // Save attachments to temp folder
+      const attachments = await saveAttachments(parsed.attachments || [])
+      
+      const result = {
+        sender: parsed.from?.text || null,
+        date: parsed.date?.toISOString() || null,
+        subject: parsed.subject || null,
+        body: parsed.text || parsed.html || null,
+        attachments,
+      }
+
+      console.log('[handleImapMessage] Parsed - Subject:', result.subject)
+      console.log('[handleImapMessage] Attachments:', attachments.length)
+      imap.end()
+      resolve(result)
+    } catch (parseErr) {
+      imap.end()
+      reject(parseErr)
+    }
+  })
 }
 
-const createMimeMessage = (from, to, subject, body) => {
-  return [
-    `From: ${from}`,
-    `To: ${to}`,
-    `Subject: ${subject}`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=utf-8',
-    '',
-    body,
-  ].join('\r\n')
+/**
+ * Save attachments to a temp folder
+ * @param {Array} attachments - Array of attachment objects from mailparser
+ * @returns {Array} Array of saved attachment info with paths
+ */
+const saveAttachments = async (attachments) => {
+  if (!attachments || attachments.length === 0) {
+    return []
+  }
+
+  // Create temp folder for attachments
+  const tempDir = path.join(os.tmpdir(), 'email-attachments', Date.now().toString())
+  await fs.mkdir(tempDir, { recursive: true })
+
+  const savedAttachments = []
+
+  for (const attachment of attachments) {
+    const filename = attachment.filename || `attachment_${savedAttachments.length + 1}`
+    const filePath = path.join(tempDir, filename)
+    
+    // Write attachment content to file
+    await fs.writeFile(filePath, attachment.content)
+    
+    savedAttachments.push({
+      filename,
+      path: filePath,
+      contentType: attachment.contentType || 'application/octet-stream',
+      size: attachment.size || attachment.content.length,
+    })
+
+    console.log(`[saveAttachments] Saved: ${filename} (${savedAttachments[savedAttachments.length - 1].size} bytes)`)
+  }
+
+  return savedAttachments
 }
