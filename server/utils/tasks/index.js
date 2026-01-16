@@ -17,8 +17,8 @@ import {
   selectFromDropdown,
 } from './browser.js'
 import { ollamaGenerate, ollamaList } from './llm.js'
-import { parseQcHtml, parseAllQcHtmls, parseQcExcel, qcCheck } from './ww.js'
-import { pdfToImages } from './doc.js'
+import { parseQcHtml, parseAllQcHtmls, parseQcExcel, qcCheck, generateReport } from './ww.js'
+import { pdfToImages, pdfToHtmls } from './doc.js'
 
 export const tasks = {
   email: {
@@ -245,7 +245,9 @@ export const tasks = {
     },
     parseQcExcel: {
       name: 'Parse QC Excel',
-      inputs: [],
+      inputs: [
+        { name: 'labReportId', type: 'string', label: 'Lab Report ID', required: true },
+      ],
       outputs: ['analytes', 'metadata'],
       handler: parseQcExcel,
     },
@@ -258,6 +260,14 @@ export const tasks = {
       outputs: ['differences', 'hasDifferences'],
       handler: qcCheck,
     },
+    generateReport: {
+      name: 'Generate Report',
+      inputs: [
+        { name: 'labReportId', type: 'string', label: 'Lab Report ID', required: true },
+      ],
+      outputs: ['success', 'connectionId', 'labReportId'],
+      handler: generateReport,
+    },
   },
   doc: {
     pdfToImages: {
@@ -269,6 +279,16 @@ export const tasks = {
       ],
       outputs: ['folder'],
       handler: pdfToImages,
+    },
+    pdfToHtmls: {
+      name: 'PDF to Htmls',
+      inputs: [
+        { name: 'pdfPath', type: 'string', label: 'PDF File Path', required: true },
+        { name: 'startPage', type: 'number', label: 'Start Page', required: false, default: 1 },
+        { name: 'endPage', type: 'number', label: 'End Page (default: last page)', required: false },
+      ],
+      outputs: ['folder'],
+      handler: pdfToHtmls,
     },
   },
 }

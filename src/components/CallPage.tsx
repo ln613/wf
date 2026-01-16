@@ -71,6 +71,15 @@ export const CallPage = ({ item, onBack }: CallPageProps) => {
           return prev
         })
       }
+      // Set default value for string/text inputs
+      if ((input.type === 'string' || input.type === 'text' || !input.type) && input.default) {
+        setInputs((prev) => {
+          if (!prev[input.name]) {
+            return { ...prev, [input.name]: input.default! }
+          }
+          return prev
+        })
+      }
     })
   }, [item.inputs, loadDropdownOptions])
 

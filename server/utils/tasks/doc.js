@@ -15,9 +15,28 @@ export const pdfToImages = async ({ pdfPath, startPage = 1, endPage }) => {
   validatePdfInput(pdfPath)
 
   const pdfBuffer = await readPdfFile(pdfPath)
-  const outputFolder = createOutputFolder(pdfPath)
-  const imageBuffers = await callStirlingApi(pdfBuffer, startPage, endPage)
+  const outputFolder = createOutputFolder(pdfPath, 'images')
+  const imageBuffers = await callStirlingApiForImages(pdfBuffer, startPage, endPage)
   await saveImages(imageBuffers, outputFolder)
+
+  return { folder: outputFolder }
+}
+
+/**
+ * Convert PDF to individual HTML pages using Stirling API
+ * @param {Object} inputs
+ * @param {string} inputs.pdfPath - Path to the PDF file (required)
+ * @param {number} inputs.startPage - Start page number (default: 1)
+ * @param {number} inputs.endPage - End page number (default: last page)
+ * @returns {Object} Result with folder path containing generated HTML files
+ */
+export const pdfToHtmls = async ({ pdfPath, startPage = 1, endPage }) => {
+  validatePdfInput(pdfPath)
+
+  const pdfBuffer = await readPdfFile(pdfPath)
+  const outputFolder = createOutputFolder(pdfPath, 'html')
+  const htmlBuffers = await callStirlingApiForHtml(pdfBuffer, startPage, endPage)
+  await saveHtmlFiles(htmlBuffers, outputFolder)
 
   return { folder: outputFolder }
 }
@@ -45,14 +64,15 @@ const readPdfFile = async (pdfPath) => {
 }
 
 /**
- * Create output folder for images
+ * Create output folder for converted files
  * @param {string} pdfPath - Path to PDF file
+ * @param {string} type - Type of output ('images' or 'html')
  * @returns {string} Output folder path
  */
-const createOutputFolder = (pdfPath) => {
+const createOutputFolder = (pdfPath, type = 'images') => {
   const pdfName = path.basename(pdfPath, path.extname(pdfPath))
   const timestamp = Date.now()
-  const outputFolder = path.join(os.tmpdir(), `pdf-images-${pdfName}-${timestamp}`)
+  const outputFolder = path.join(os.tmpdir(), `pdf-${type}-${pdfName}-${timestamp}`)
   fsSync.mkdirSync(outputFolder, { recursive: true })
   return outputFolder
 }
@@ -80,7 +100,7 @@ const getStirlingApiKey = () => {
  * @param {number} endPage - End page number (null for all pages)
  * @returns {Array<Buffer>} Array of image buffers
  */
-const callStirlingApi = async (pdfBuffer, startPage, endPage) => {
+const callStirlingApiForImages = async (pdfBuffer, startPage, endPage) => {
   const apiUrl = getStirlingApiUrl()
   const apiKey = getStirlingApiKey()
 
@@ -116,6 +136,47 @@ const callStirlingApi = async (pdfBuffer, startPage, endPage) => {
 
   const imageBuffers = await extractImagesFromResponse(response)
   return imageBuffers
+}
+
+/**
+ * Call Stirling API to convert PDF to HTML
+ * @param {Buffer} pdfBuffer - PDF file buffer
+ * @param {number} startPage - Start page number
+ * @param {number} endPage - End page number (null for all pages)
+ * @returns {Array<Buffer>} Array of HTML buffers
+ */
+const callStirlingApiForHtml = async (pdfBuffer, startPage, endPage) => {
+  const apiUrl = getStirlingApiUrl()
+  const apiKey = getStirlingApiKey()
+
+  const formData = new FormData()
+  const pdfBlob = new Blob([pdfBuffer], { type: 'application/pdf' })
+  formData.append('fileInput', pdfBlob, 'input.pdf')
+
+  if (startPage && startPage > 1) {
+    formData.append('pageNumbers', buildPageRange(startPage, endPage))
+  } else if (endPage) {
+    formData.append('pageNumbers', buildPageRange(1, endPage))
+  }
+
+  const headers = {}
+  if (apiKey) {
+    headers['X-API-Key'] = apiKey
+  }
+
+  const response = await fetch(`${apiUrl}/api/v1/convert/pdf/html`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Stirling API error: ${response.status} - ${errorText}`)
+  }
+
+  const htmlBuffers = await extractHtmlFromResponse(response)
+  return htmlBuffers
 }
 
 /**
@@ -173,6 +234,37 @@ const extractPageNumber = (fileName) => {
 }
 
 /**
+ * Extract HTML files from Stirling API response
+ * The response is a ZIP file containing the HTML files
+ * @param {Response} response - Fetch response
+ * @returns {Array<{name: string, buffer: Buffer}>} Array of HTML file objects
+ */
+const extractHtmlFromResponse = async (response) => {
+  const JSZip = (await import('jszip')).default
+  const zipBuffer = await response.arrayBuffer()
+  const zip = await JSZip.loadAsync(zipBuffer)
+
+  const htmlBuffers = []
+  const fileNames = Object.keys(zip.files).filter(
+    (name) => !zip.files[name].dir && /\.html$/i.test(name),
+  )
+
+  // Sort files by name to maintain page order
+  fileNames.sort((a, b) => {
+    const numA = extractPageNumber(a)
+    const numB = extractPageNumber(b)
+    return numA - numB
+  })
+
+  for (const fileName of fileNames) {
+    const buffer = await zip.files[fileName].async('nodebuffer')
+    htmlBuffers.push({ name: fileName, buffer })
+  }
+
+  return htmlBuffers
+}
+
+/**
  * Save images to output folder
  * @param {Array<{name: string, buffer: Buffer}>} imageBuffers - Array of image objects
  * @param {string} outputFolder - Output folder path
@@ -182,6 +274,19 @@ const saveImages = async (imageBuffers, outputFolder) => {
     const { name, buffer } = imageBuffers[i]
     const ext = path.extname(name) || '.png'
     const outputPath = path.join(outputFolder, `page-${String(i + 1).padStart(4, '0')}${ext}`)
+    await fs.writeFile(outputPath, buffer)
+  }
+}
+
+/**
+ * Save HTML files to output folder
+ * @param {Array<{name: string, buffer: Buffer}>} htmlBuffers - Array of HTML file objects
+ * @param {string} outputFolder - Output folder path
+ */
+const saveHtmlFiles = async (htmlBuffers, outputFolder) => {
+  for (let i = 0; i < htmlBuffers.length; i++) {
+    const { buffer } = htmlBuffers[i]
+    const outputPath = path.join(outputFolder, `page-${String(i + 1).padStart(4, '0')}.html`)
     await fs.writeFile(outputPath, buffer)
   }
 }

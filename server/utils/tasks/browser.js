@@ -576,3 +576,121 @@ export const selectFromDropdown = async ({ connectionId, selector, value }) => {
     throw error
   }
 }
+
+/**
+ * Wait for a download to complete by monitoring the download folder for new .xlsx files
+ * @param {Object} inputs
+ * @param {string} inputs.connectionId - Browser connection ID (optional, for future use)
+ * @param {string} inputs.downloadPath - Path to monitor for downloads (defaults to user's Downloads folder)
+ * @param {number} inputs.timeoutSeconds - Maximum seconds to wait (default: 60)
+ * @param {number} inputs.pollIntervalSeconds - Seconds between polls (default: 2)
+ * @returns {Object} Result with success status and downloaded file path
+ */
+export const waitForDownload = async ({ connectionId, downloadPath, timeoutSeconds = 60, pollIntervalSeconds = 2 }) => {
+  try {
+    const fs = await import('fs/promises')
+    const path = await import('path')
+    
+    // Get default download path if not specified
+    const downloadDir = downloadPath || getDefaultDownloadPath()
+    
+    console.log(`[waitForDownload] Monitoring folder: ${downloadDir}`)
+    console.log(`[waitForDownload] Timeout: ${timeoutSeconds}s, Poll interval: ${pollIntervalSeconds}s`)
+    
+    // Get initial list of files in download folder
+    const initialFiles = await getExcelFilesInFolder(fs, downloadDir)
+    const initialFileSet = new Set(initialFiles.map(f => f.name))
+    
+    console.log(`[waitForDownload] Initial Excel files: ${initialFiles.length}`)
+    
+    const startTime = Date.now()
+    const timeoutMs = timeoutSeconds * 1000
+    const pollIntervalMs = pollIntervalSeconds * 1000
+    
+    while (Date.now() - startTime < timeoutMs) {
+      await sleep(pollIntervalMs)
+      
+      // Check for new files or files that are still being written (.crdownload, .tmp)
+      const currentFiles = await getExcelFilesInFolder(fs, downloadDir)
+      
+      // Find new files that weren't in the initial set
+      const newFiles = currentFiles.filter(f => !initialFileSet.has(f.name))
+      
+      if (newFiles.length > 0) {
+        // Check if the file is complete (not a partial download)
+        const completedFile = newFiles.find(f =>
+          !f.name.endsWith('.crdownload') &&
+          !f.name.endsWith('.tmp') &&
+          f.name.endsWith('.xlsx')
+        )
+        
+        if (completedFile) {
+          const filePath = path.default.join(downloadDir, completedFile.name)
+          console.log(`[waitForDownload] Download completed: ${filePath}`)
+          return { success: true, message: 'Download completed', filePath }
+        }
+        
+        console.log(`[waitForDownload] Download in progress...`)
+      }
+      
+      const elapsedSeconds = Math.round((Date.now() - startTime) / 1000)
+      console.log(`[waitForDownload] Waiting... ${elapsedSeconds}s elapsed`)
+    }
+    
+    throw new Error(`Download timed out after ${timeoutSeconds} seconds`)
+  } catch (error) {
+    console.error('Error waiting for download:', error.message)
+    throw error
+  }
+}
+
+/**
+ * Get list of Excel files in a folder with their stats
+ * @param {Object} fs - fs/promises module
+ * @param {string} folder - Folder path
+ * @returns {Array} Array of file objects with name and mtime
+ */
+const getExcelFilesInFolder = async (fs, folder) => {
+  try {
+    const files = await fs.readdir(folder)
+    const excelFiles = files.filter(f =>
+      f.toLowerCase().endsWith('.xlsx') ||
+      f.toLowerCase().endsWith('.xls') ||
+      f.toLowerCase().endsWith('.crdownload') ||
+      f.toLowerCase().endsWith('.tmp')
+    )
+    
+    const fileStats = await Promise.all(
+      excelFiles.map(async (name) => {
+        try {
+          const stats = await fs.stat(`${folder}/${name}`)
+          return { name, mtime: stats.mtime }
+        } catch {
+          return null
+        }
+      })
+    )
+    
+    return fileStats.filter(f => f !== null)
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Sleep for specified milliseconds
+ * @param {number} ms - Milliseconds to sleep
+ */
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
+/**
+ * Get default download path based on OS
+ */
+const getDefaultDownloadPath = () => {
+  const platform = process.platform
+  const homeDir = process.env.HOME || process.env.USERPROFILE
+  if (platform === 'win32') {
+    return `${homeDir}\\Downloads`
+  }
+  return `${homeDir}/Downloads`
+}

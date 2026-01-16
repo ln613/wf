@@ -16,21 +16,6 @@
   - subject: hh
   - body: hello
 
-## Test Browser Automation
-
-### Tasks
-
-- Open browser window (chrome, https://wirelesswater.com/Account/LogOn?ReturnUrl=%2fmain)
-- Enter text ('#username', WW_LAB)
-- Enter text ('#password', WW_LAB_PASSWORD)
-- Click ('button.filter')
-- Wait 3 seconds
-- Navigate to https://wirelesswater.com/labarchive
-- Enter text ('#txtSearch1', '25G3917')
-- Click ('a[title="Search"]')
-- Wait 3 seconds
-- Click ('a[href^="/LabArchive/SummaryView/"]')
-
 ## Test Ollama
 
 ### Input
@@ -62,17 +47,16 @@
 
 ## Test WW
 
+### Input
+
+- the path of the PDF file = C:\ww\c1.pdf
+
 ### Tasks
 
-- read the file content as html 
+- PDF to Htmls
 - Parse All QC Htmls (as H):
-  - in "C:\ww\caro\html"
+  - in the html folder
   - contains a <p> with content <b>TEST RESULTS</b>
-- Parse QC Excel (as E)
-- perform QC check with H.analytes and E.analytes
-
-## Test PDF to Images
-
-### Tasks
-
-- PDF to Images (C:\ww\c1.pdf)
+- Generate report with H.metadata.labReportId
+- Parse QC Excel with H.metadata.labReportId (as E)
+- if E is not null, perform QC check with H.analytes and E.analytes

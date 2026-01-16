@@ -1,5 +1,26 @@
 # ww tasks
 
+## Generate Report
+
+### Input
+
+- lab report id *
+
+### Action
+
+- Open browser window (chrome, https://wirelesswater.com/Account/LogOn?ReturnUrl=%2fmain)
+- Enter text ('#username', WW_LAB)
+- Enter text ('#password', WW_LAB_PASSWORD)
+- Click ('button.filter')
+- Wait 3 seconds
+- Navigate to https://wirelesswater.com/labarchive
+- Enter text ('#txtSearch1', lab report id)
+- Click ('a[title="Search"]')
+- Wait 3 seconds
+- Click ('a[href^="/LabArchive/SummaryView/"]')
+- Wait for the download to finish
+- Close the browser
+
 ## Parse QC Html
 
 ### Input
@@ -47,9 +68,13 @@
 
 ## Parse QC Excel
 
+### Input
+
+- lab report id *
+
 ### Action
 
-- find the latest excel file in the download folder
+- find the latest excel file in the download folder with the name "{lab report id} summary archive{...}.xlsx" (the ... part can be empty or anything). if not found or the date of the file is over 1 minute old, return null
 - in the first worksheet:
   - find the first empty row (R1)
   - extract the info before R1 as metadata (col A is key, col b is value). Key mapping: "Client Name: " -> clientName, "Lab Name: " -> labName, "Lab Report ID: " -> labReportId, "Lab Report Name: " -> labReportName

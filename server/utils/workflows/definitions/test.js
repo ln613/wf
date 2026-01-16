@@ -26,76 +26,6 @@ export const testWorkflows = {
       },
     ],
   },
-  testBrowserAutomation: {
-    name: 'Test Browser Automation',
-    category: 'test',
-    tasks: [
-      {
-        taskName: 'Open Browser Window',
-        inputs: {
-          browserType: 'chrome',
-          url: 'https://wirelesswater.com/Account/LogOn?ReturnUrl=%2fmain',
-        },
-      },
-      {
-        taskName: 'Enter Text',
-        inputs: {
-          selector: '#username',
-          text: 'WW_LAB',
-        },
-      },
-      {
-        taskName: 'Enter Text',
-        inputs: {
-          selector: '#password',
-          text: 'WW_LAB_PASSWORD',
-        },
-      },
-      {
-        taskName: 'Click Element',
-        inputs: {
-          selector: 'button.filter',
-        },
-      },
-      {
-        taskName: 'Wait',
-        inputs: {
-          seconds: 3,
-        },
-      },
-      {
-        taskName: 'Navigate',
-        inputs: {
-          url: 'https://wirelesswater.com/labarchive',
-        },
-      },
-      {
-        taskName: 'Enter Text',
-        inputs: {
-          selector: '#txtSearch1',
-          text: '25G3917',
-        },
-      },
-      {
-        taskName: 'Click Element',
-        inputs: {
-          selector: 'a[title="Search"]',
-        },
-      },
-      {
-        taskName: 'Wait',
-        inputs: {
-          seconds: 3,
-        },
-      },
-      {
-        taskName: 'Click Element',
-        inputs: {
-          selector: 'a[href^="/LabArchive/SummaryView/"]',
-        },
-      },
-    ],
-  },
   testOllama: {
     name: 'Test Ollama',
     category: 'test',
@@ -175,39 +105,52 @@ export const testWorkflows = {
   testWW: {
     name: 'Test WW',
     category: 'test',
+    inputs: [
+      {
+        name: 'pdfPath',
+        type: 'string',
+        label: 'PDF File Path',
+        required: false,
+        default: 'C:\\ww\\c1.pdf',
+      },
+    ],
     tasks: [
+      {
+        taskName: 'PDF to Htmls',
+        inputs: {
+          pdfPath: '{{pdfPath}}',
+        },
+        outputAs: 'pdfResult',
+      },
       {
         taskName: 'Parse All QC Htmls',
         inputs: {
-          folder: 'C:\\ww\\caro\\html',
+          folder: '{{pdfResult.folder}}',
           filterFn: (content) => content.includes('<p') && content.includes('<b>TEST RESULTS</b>'),
         },
         outputAs: 'H',
         debug: true,
       },
       {
+        taskName: 'Generate Report',
+        inputs: {
+          labReportId: '{{H.metadata.labReportId}}',
+        },
+      },
+      {
         taskName: 'Parse QC Excel',
-        inputs: {},
+        inputs: {
+          labReportId: '{{H.metadata.labReportId}}',
+        },
         outputAs: 'E',
         debug: true,
       },
       {
+        condition: '{{E !== null}}',
         taskName: 'QC Check',
         inputs: {
           analyteList1: '{{H.analytes}}',
           analyteList2: '{{E.analytes}}',
-        },
-      },
-    ],
-  },
-  testPdfToImages: {
-    name: 'Test PDF to Images',
-    category: 'test',
-    tasks: [
-      {
-        taskName: 'PDF to Images',
-        inputs: {
-          pdfPath: 'C:\\ww\\c1.pdf',
         },
       },
     ],

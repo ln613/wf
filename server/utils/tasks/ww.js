@@ -4,6 +4,15 @@ import fsSync from 'fs'
 import path from 'path'
 import XLSX from 'xlsx'
 import os from 'os'
+import {
+  openBrowserWindow,
+  enterText,
+  clickElement,
+  wait,
+  navigate,
+  waitForDownload,
+  closeBrowserWindow,
+} from './browser.js'
 
 /**
  * Parse QC HTML content and extract analytes and metadata
@@ -452,11 +461,23 @@ const combineResults = (results) => {
 
 /**
  * Parse QC Excel file from the download folder
- * @returns {Object} Result with analytes list and metadata
+ * Waits for the file to appear (polls every 2 seconds for up to 60 seconds)
+ * @param {Object} inputs
+ * @param {string} inputs.labReportId - Lab report ID (required)
+ * @param {number} inputs.maxWaitSeconds - Maximum seconds to wait for file (default: 60)
+ * @param {number} inputs.pollIntervalSeconds - Seconds between polls (default: 2)
+ * @returns {Object|null} Result with analytes list and metadata, or null if file not found after waiting
  */
-export const parseQcExcel = async () => {
+export const parseQcExcel = async ({ labReportId, maxWaitSeconds = 60, pollIntervalSeconds = 2 }) => {
+  validateLabReportIdInput(labReportId)
+
   const downloadFolder = getDownloadFolder()
-  const excelFile = await findLatestExcelFile(downloadFolder)
+  const excelFile = await waitForExcelFile(downloadFolder, labReportId, maxWaitSeconds, pollIntervalSeconds)
+
+  if (!excelFile) {
+    return null
+  }
+
   const workbook = readExcelFile(excelFile)
   const worksheet = getFirstWorksheet(workbook)
   const { metadata, sampleInfos, analyteHeaderRow } =
@@ -468,6 +489,54 @@ export const parseQcExcel = async () => {
 }
 
 /**
+ * Wait for Excel file to appear in the download folder
+ * @param {string} folder - Folder path
+ * @param {string} labReportId - Lab report ID
+ * @param {number} maxWaitSeconds - Maximum seconds to wait
+ * @param {number} pollIntervalSeconds - Seconds between polls
+ * @returns {string|null} Full path to the Excel file or null if not found
+ */
+const waitForExcelFile = async (folder, labReportId, maxWaitSeconds, pollIntervalSeconds) => {
+  console.log(`[Parse QC Excel] Waiting for Excel file (max ${maxWaitSeconds}s, polling every ${pollIntervalSeconds}s)`)
+  
+  const startTime = Date.now()
+  const maxWaitMs = maxWaitSeconds * 1000
+  const pollIntervalMs = pollIntervalSeconds * 1000
+  
+  while (Date.now() - startTime < maxWaitMs) {
+    const excelFile = await findExcelFileByLabReportId(folder, labReportId)
+    if (excelFile) {
+      return excelFile
+    }
+    
+    const elapsedSeconds = Math.round((Date.now() - startTime) / 1000)
+    console.log(`[Parse QC Excel] File not found yet, waited ${elapsedSeconds}s...`)
+    
+    await sleep(pollIntervalMs)
+  }
+  
+  console.log(`[Parse QC Excel] Timed out waiting for Excel file after ${maxWaitSeconds}s`)
+  return null
+}
+
+/**
+ * Sleep for specified milliseconds
+ * @param {number} ms - Milliseconds to sleep
+ * @returns {Promise} Promise that resolves after the delay
+ */
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
+/**
+ * Validate lab report ID input
+ * @param {string} labReportId - Lab report ID
+ */
+const validateLabReportIdInput = (labReportId) => {
+  if (!labReportId) {
+    throw new Error('Lab report ID is required')
+  }
+}
+
+/**
  * Get the download folder path based on OS
  * @returns {string} Download folder path
  */
@@ -476,20 +545,57 @@ const getDownloadFolder = () => {
 }
 
 /**
- * Find the latest Excel file in a folder
+ * Find Excel file by lab report ID with freshness check
+ * File name format: "{lab report id} summary archive{...}.xlsx" (the ... part can be empty or anything)
+ * Returns null if file not found or older than 1 minute
  * @param {string} folder - Folder path
- * @returns {string} Full path to the latest Excel file
+ * @param {string} labReportId - Lab report ID
+ * @returns {string|null} Full path to the Excel file or null
  */
-const findLatestExcelFile = async (folder) => {
-  const files = await fs.readdir(folder)
-  const excelFiles = files.filter((file) => isExcelFile(file))
+const findExcelFileByLabReportId = async (folder, labReportId) => {
+  console.log(`[Parse QC Excel] Searching for Excel file in folder: ${folder}`)
+  console.log(`[Parse QC Excel] Lab Report ID: ${labReportId}`)
+  
+  const matchingFile = await findMatchingExcelFile(folder, labReportId)
+  if (!matchingFile) {
+    console.log(`[Parse QC Excel] No matching Excel file found`)
+    return null
+  }
 
-  if (excelFiles.length === 0) {
-    throw new Error('No Excel files found in download folder')
+  console.log(`[Parse QC Excel] Found matching file: ${matchingFile}`)
+  const filePath = path.join(folder, matchingFile)
+  const isFileFresh = await checkFileFreshness(filePath, 60)
+  if (!isFileFresh) {
+    console.log(`[Parse QC Excel] File is older than 1 minute, skipping`)
+    return null
+  }
+
+  console.log(`[Parse QC Excel] File is fresh, using: ${filePath}`)
+  return filePath
+}
+
+/**
+ * Find Excel file matching the pattern "{lab report id} summary archive{...}.xlsx"
+ * @param {string} folder - Folder path
+ * @param {string} labReportId - Lab report ID
+ * @returns {string|null} Matching file name or null
+ */
+const findMatchingExcelFile = async (folder, labReportId) => {
+  const files = await fs.readdir(folder)
+  const pattern = new RegExp(`^${escapeRegExp(labReportId)} summary archive.*\\.xlsx$`, 'i')
+
+  const matchingFiles = files.filter((file) => pattern.test(file))
+  if (matchingFiles.length === 0) {
+    return null
+  }
+
+  // If multiple matches, return the most recently modified one
+  if (matchingFiles.length === 1) {
+    return matchingFiles[0]
   }
 
   const fileStats = await Promise.all(
-    excelFiles.map(async (file) => {
+    matchingFiles.map(async (file) => {
       const filePath = path.join(folder, file)
       const stats = await fs.stat(filePath)
       return { file, mtime: stats.mtime }
@@ -497,7 +603,43 @@ const findLatestExcelFile = async (folder) => {
   )
 
   fileStats.sort((a, b) => b.mtime - a.mtime)
-  return path.join(folder, fileStats[0].file)
+  return fileStats[0].file
+}
+
+/**
+ * Escape special regex characters in a string
+ * @param {string} str - String to escape
+ * @returns {string} Escaped string
+ */
+const escapeRegExp = (str) => {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Check if a file exists
+ * @param {string} filePath - Path to file
+ * @returns {boolean} True if file exists
+ */
+const checkFileExists = async (filePath) => {
+  try {
+    await fs.access(filePath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Check if a file is fresh (modified within the specified seconds)
+ * @param {string} filePath - Path to file
+ * @param {number} maxAgeSeconds - Maximum age in seconds
+ * @returns {boolean} True if file is fresh
+ */
+const checkFileFreshness = async (filePath, maxAgeSeconds) => {
+  const stats = await fs.stat(filePath)
+  const now = Date.now()
+  const fileAge = (now - stats.mtime.getTime()) / 1000
+  return fileAge <= maxAgeSeconds
 }
 
 /**
@@ -1239,5 +1381,117 @@ const compareAnalyteLists = (list1, list2) => {
   }
 
   return differences
+}
+
+/**
+ * Generate report by logging into WirelessWater and navigating to the lab report
+ * @param {Object} inputs
+ * @param {string} inputs.labReportId - Lab report ID (required)
+ * @returns {Object} Result with success status and connection info
+ */
+export const generateReport = async ({ labReportId }) => {
+  validateLabReportIdInput(labReportId)
+
+  const connectionId = await loginToWirelessWater()
+  await navigateToLabArchive(connectionId)
+  await searchForLabReport(connectionId, labReportId)
+  await openLabReportSummary(connectionId)
+  await waitForDownloadToComplete(connectionId)
+  await closeBrowser(connectionId)
+
+  return { success: true, labReportId }
+}
+
+/**
+ * Wait for the download to complete
+ * @param {string} connectionId - Browser connection ID
+ */
+const waitForDownloadToComplete = async (connectionId) => {
+  await waitForDownload({
+    connectionId,
+    timeoutSeconds: 60,
+  })
+}
+
+/**
+ * Close the browser
+ * @param {string} connectionId - Browser connection ID
+ */
+const closeBrowser = async (connectionId) => {
+  await closeBrowserWindow({ connectionId })
+}
+
+/**
+ * Login to WirelessWater website
+ * @returns {string} Browser connection ID
+ */
+const loginToWirelessWater = async () => {
+  const { connectionId } = await openBrowserWindow({
+    browserType: 'chrome',
+    url: 'https://wirelesswater.com/Account/LogOn?ReturnUrl=%2fmain',
+  })
+
+  await enterText({
+    connectionId,
+    selector: '#username',
+    text: 'WW_LAB',
+  })
+
+  await enterText({
+    connectionId,
+    selector: '#password',
+    text: 'WW_LAB_PASSWORD',
+  })
+
+  await clickElement({
+    connectionId,
+    selector: 'button.filter',
+  })
+
+  await wait({ seconds: 3 })
+
+  return connectionId
+}
+
+/**
+ * Navigate to lab archive page
+ * @param {string} connectionId - Browser connection ID
+ */
+const navigateToLabArchive = async (connectionId) => {
+  await navigate({
+    connectionId,
+    url: 'https://wirelesswater.com/labarchive',
+  })
+}
+
+/**
+ * Search for a lab report by ID
+ * @param {string} connectionId - Browser connection ID
+ * @param {string} labReportId - Lab report ID
+ */
+const searchForLabReport = async (connectionId, labReportId) => {
+  await enterText({
+    connectionId,
+    selector: '#txtSearch1',
+    text: labReportId,
+  })
+
+  await clickElement({
+    connectionId,
+    selector: 'a[title="Search"]',
+  })
+
+  await wait({ seconds: 3 })
+}
+
+/**
+ * Open the lab report summary view
+ * @param {string} connectionId - Browser connection ID
+ */
+const openLabReportSummary = async (connectionId) => {
+  await clickElement({
+    connectionId,
+    selector: 'a[href^="/LabArchive/SummaryView/"]',
+  })
 }
 
