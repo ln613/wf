@@ -1,5 +1,13 @@
 import { EventEmitter } from 'events'
-import { watchEmail, stopWatchEmail, stopAllWatchers } from './emailWatcher.js'
+import { watchEmail, stopWatchEmail, stopAllWatchers as stopAllEmailWatchers } from './emailWatcher.js'
+import {
+  watchFiles,
+  stopWatchFiles,
+  stopAllFileWatchers,
+  registerFileWatchingTrigger,
+  unregisterFileWatchingTrigger,
+  getRegisteredWorkflows,
+} from './fileWatcher.js'
 
 // Global event emitter for background tasks
 export const backgroundEvents = new EventEmitter()
@@ -55,7 +63,8 @@ export const stopBackgroundTask = (taskId) => {
  */
 export const stopAllBackgroundTasks = () => {
   console.log('[Background] Stopping all background tasks...')
-  stopAllWatchers()
+  stopAllEmailWatchers()
+  stopAllFileWatchers()
   activeBackgroundTasks.clear()
   console.log('[Background] All background tasks stopped')
 }
@@ -84,6 +93,9 @@ const generateTaskId = (taskType, config) => {
   if (taskType === 'watchEmail') {
     return `watchEmail_${config.emailAccount}`
   }
+  if (taskType === 'watchFiles') {
+    return `watchFiles_${config.folder}_${config.changeType}`
+  }
   return `${taskType}_${Date.now()}`
 }
 
@@ -93,13 +105,17 @@ const getBackgroundTaskHandler = (taskType) => {
       start: watchEmail,
       stop: stopWatchEmail,
     },
+    watchFiles: {
+      start: watchFiles,
+      stop: stopWatchFiles,
+    },
   }
-  
+
   const handler = handlers[taskType]
   if (!handler) {
     throw new Error(`Unknown background task type: ${taskType}`)
   }
-  
+
   return handler
 }
 
@@ -114,4 +130,23 @@ export const backgroundTasks = {
     ],
     events: ['newEmail'],
   },
+  watchFiles: {
+    name: 'Watch Files',
+    description: 'Watch a folder for file changes and emit events',
+    inputs: [
+      { name: 'folder', type: 'string', label: 'Folder Path', required: true },
+      {
+        name: 'changeType',
+        type: 'select',
+        label: 'Change Type',
+        required: true,
+        options: ['created', 'modified', 'deleted'],
+      },
+      { name: 'filePattern', type: 'string', label: 'File Pattern (e.g., *.txt)', required: false },
+    ],
+    events: ['fileChange'],
+  },
 }
+
+// Re-export file watcher registration functions for workflow use
+export { registerFileWatchingTrigger, unregisterFileWatchingTrigger, getRegisteredWorkflows }
