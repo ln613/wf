@@ -209,4 +209,40 @@ export const testWorkflows = {
       },
     ],
   },
+  testFfmpeg: {
+    name: 'Test ffmpeg',
+    category: 'test',
+    inputs: [
+      {
+        name: 'filePath',
+        type: 'file',
+        label: 'File Path',
+        required: true,
+      },
+      {
+        name: 'start',
+        type: 'number',
+        label: 'Start Time (seconds)',
+        required: false,
+        default: 0,
+      },
+      {
+        name: 'end',
+        type: 'number',
+        label: 'End Time (seconds)',
+        required: false,
+      },
+    ],
+    tasks: [
+      {
+        taskName: 'FFmpeg Cut',
+        inputs: {
+          fileName: '{{filePath}}',
+          start: '{{start}}',
+          end: '{{end}}',
+        },
+        outputAs: 'ffmpegResult',
+      },
+    ],
+  },
 }

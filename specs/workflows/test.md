@@ -96,3 +96,20 @@ For those workflows with auto triggers, check the env value in the .env file to 
 ### Tasks
 
 - move the new file(s) to /Users/nanli/t/tmp
+
+## Test ffmpeg
+
+### Input
+
+- file path input and a Select a file button
+  either enter the path manually or select a file then fill the path
+- start
+- end
+
+### Tasks
+
+- ffmpeg cut (selected file path, start, end)
+
+### Output
+
+- the successful/error info

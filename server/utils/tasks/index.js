@@ -19,6 +19,7 @@ import {
 import { ollamaGenerate, ollamaList } from './llm.js'
 import { parseQcHtml, parseAllQcHtmls, parseQcExcel, qcCheck, generateReport } from './ww.js'
 import { pdfToImages, pdfToHtmls } from './doc.js'
+import { ffmpegCut } from './media.js'
 
 export const tasks = {
   email: {
@@ -325,6 +326,20 @@ export const tasks = {
       ],
       outputs: ['folder'],
       handler: pdfToHtmls,
+    },
+  },
+  media: {
+    ffmpegCut: {
+      name: 'FFmpeg Cut',
+      inputs: [
+        { name: 'fileName', type: 'file', label: 'File Path', required: true },
+        { name: 'duration', type: 'number', label: 'Duration (seconds)', required: false },
+        { name: 'start', type: 'number', label: 'Start Time (seconds)', required: false, default: 0 },
+        { name: 'end', type: 'number', label: 'End Time (seconds)', required: false },
+        { name: 'isCopy', type: 'boolean', label: 'Use Stream Copy (faster but less accurate)', required: false, default: false },
+      ],
+      outputs: ['success', 'message', 'outputPath'],
+      handler: ffmpegCut,
     },
   },
 }
