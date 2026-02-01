@@ -5,6 +5,30 @@ import { executeWorkflow, workflows } from './index.js'
 const registeredTriggers = new Map()
 
 /**
+ * Convert workflow key to environment variable name
+ * e.g., 'testWW' -> 'TEST_WW_TRIGGER', 'testFileWatch' -> 'TEST_FILE_WATCH_TRIGGER'
+ * @param {string} workflowKey - Workflow key in camelCase
+ * @returns {string} Environment variable name
+ */
+const getEnvVarName = (workflowKey) => {
+  // Convert camelCase to SCREAMING_SNAKE_CASE
+  const snakeCase = workflowKey.replace(/([A-Z])/g, '_$1').toUpperCase()
+  return `${snakeCase}_TRIGGER`
+}
+
+/**
+ * Check if a workflow trigger is enabled via environment variable
+ * Format: {WORKFLOW_NAME}_TRIGGER=1 (1 = on, 0 = off, default off)
+ * @param {string} workflowKey - Workflow key
+ * @returns {boolean} Whether the trigger is enabled
+ */
+const isTriggerEnabled = (workflowKey) => {
+  const envVarName = getEnvVarName(workflowKey)
+  const envValue = process.env[envVarName]
+  return envValue === '1'
+}
+
+/**
  * Register event triggers for all workflows that have them
  */
 export const registerAllEventTriggers = () => {
@@ -12,7 +36,12 @@ export const registerAllEventTriggers = () => {
   
   for (const [workflowKey, workflow] of Object.entries(workflows)) {
     if (workflow.eventTrigger) {
-      registerWorkflowTrigger(workflowKey, workflow)
+      if (isTriggerEnabled(workflowKey)) {
+        registerWorkflowTrigger(workflowKey, workflow)
+      } else {
+        const envVarName = getEnvVarName(workflowKey)
+        console.log(`[Triggers] Trigger for workflow '${workflow.name}' is disabled (set ${envVarName}=1 to enable)`)
+      }
     }
   }
   

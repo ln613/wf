@@ -1,5 +1,9 @@
 # Test workflows
 
+These workflows will be triggered through the frontend UI manually unless it contains a auto trigger like email trigger, file watching trigger...
+
+For those workflows with auto triggers, check the env value in the .env file to determine whether to register the triggers on the corresponding background tasks. The env key/value format: {workflow name (joined by _)}_TRIGGER=1. 1 means on, 0 means off. Default to off for all triggers.
+
 ## Test Get Email
 
 ### Tasks
