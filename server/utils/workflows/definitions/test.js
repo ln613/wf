@@ -245,4 +245,25 @@ export const testWorkflows = {
       },
     ],
   },
+  testFfprobe: {
+    name: 'Test ffprobe',
+    category: 'test',
+    inputs: [
+      {
+        name: 'filePath',
+        type: 'file',
+        label: 'File Path',
+        required: true,
+      },
+    ],
+    tasks: [
+      {
+        taskName: 'FFprobe Duration',
+        inputs: {
+          fileName: '{{filePath}}',
+        },
+        outputAs: 'ffprobeResult',
+      },
+    ],
+  },
 }

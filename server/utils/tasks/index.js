@@ -19,7 +19,7 @@ import {
 import { ollamaGenerate, ollamaList } from './llm.js'
 import { parseQcHtml, parseAllQcHtmls, parseQcExcel, qcCheck, generateReport } from './ww.js'
 import { pdfToImages, pdfToHtmls } from './doc.js'
-import { ffmpegCut } from './media.js'
+import { ffmpegCut, ffprobeDuration } from './media.js'
 
 export const tasks = {
   email: {
@@ -340,6 +340,14 @@ export const tasks = {
       ],
       outputs: ['success', 'message', 'outputPath'],
       handler: ffmpegCut,
+    },
+    ffprobeDuration: {
+      name: 'FFprobe Duration',
+      inputs: [
+        { name: 'fileName', type: 'file', label: 'File Path', required: true },
+      ],
+      outputs: ['success', 'duration', 'message'],
+      handler: ffprobeDuration,
     },
   },
 }

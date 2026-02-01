@@ -113,3 +113,17 @@ For those workflows with auto triggers, check the env value in the .env file to 
 ### Output
 
 - the successful/error info
+
+## Test ffprobe
+
+### Input
+
+- file path
+
+### Tasks
+
+- ffprobe duration (file path)
+
+### Output
+
+- the duration

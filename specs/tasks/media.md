@@ -17,3 +17,17 @@
 ### Output
 
 - wait for the command to finish and then return success info
+
+## ffprobe duration
+
+### Input
+
+- file name *
+
+### Action
+
+- run the command "ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 {input file name}"
+
+### Output
+
+- wait for the command to finish and then return the duration

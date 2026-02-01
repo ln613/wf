@@ -59,3 +59,46 @@ const executeCommand = async (command, outputFileName) => {
     throw new Error(`FFmpeg command failed: ${error.message}`)
   }
 }
+
+/**
+ * Get the duration of a media file using ffprobe
+ * @param {Object} params - Input parameters
+ * @param {string} params.fileName - The input file path (required)
+ * @returns {Promise<Object>} Result object with duration
+ */
+export const ffprobeDuration = async ({ fileName }) => {
+  validateFfprobeInput(fileName)
+
+  const command = buildFfprobeCommand(fileName)
+
+  return executeFfprobeCommand(command)
+}
+
+const validateFfprobeInput = (fileName) => {
+  if (!fileName) {
+    throw new Error('File name is required')
+  }
+}
+
+const buildFfprobeCommand = (fileName) => {
+  return `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${fileName}"`
+}
+
+const executeFfprobeCommand = async (command) => {
+  try {
+    const { stdout, stderr } = await execAsync(command)
+    const duration = parseFloat(stdout.trim())
+
+    if (isNaN(duration)) {
+      throw new Error('Failed to parse duration from ffprobe output')
+    }
+
+    return {
+      success: true,
+      duration,
+      message: `Duration: ${duration} seconds`,
+    }
+  } catch (error) {
+    throw new Error(`FFprobe command failed: ${error.message}`)
+  }
+}
