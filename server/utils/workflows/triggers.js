@@ -26,13 +26,13 @@ export const registerAllEventTriggers = () => {
  */
 const registerWorkflowTrigger = (workflowKey, workflow) => {
   const { eventTrigger } = workflow
-  
+
   validateEventTrigger(eventTrigger, workflowKey)
-  
+
   const { event, condition, inputMapping } = eventTrigger
-  
-  // Start the background task if needed
-  startBackgroundTaskForEvent(event)
+
+  // Start the background task if needed, passing workflowKey for identification
+  startBackgroundTaskForEvent(event, workflowKey)
   
   // Create the event handler
   const handler = createEventHandler(workflowKey, workflow, condition, inputMapping)
@@ -65,12 +65,20 @@ const validateEventTrigger = (eventTrigger, workflowKey) => {
 /**
  * Start the background task required for an event
  * @param {Object} event - Event configuration
+ * @param {string} workflowKey - Workflow key for identification
  */
-const startBackgroundTaskForEvent = (event) => {
+const startBackgroundTaskForEvent = (event, workflowKey) => {
   if (event.type === 'watchEmail') {
     startBackgroundTask('watchEmail', {
       emailAccount: event.emailAccount,
       pollingInterval: event.pollingInterval || 10,
+    })
+  } else if (event.type === 'watchFiles') {
+    startBackgroundTask('watchFiles', {
+      folder: event.folder,
+      changeType: event.changeType,
+      filePattern: event.filePattern,
+      workflowKey, // Pass the workflow key for event identification
     })
   }
 }
@@ -83,6 +91,9 @@ const startBackgroundTaskForEvent = (event) => {
 const getEventName = (event) => {
   if (event.type === 'watchEmail') {
     return 'newEmail'
+  }
+  if (event.type === 'watchFiles') {
+    return 'fileChange'
   }
   return event.type
 }
@@ -98,20 +109,28 @@ const getEventName = (event) => {
 const createEventHandler = (workflowKey, workflow, condition, inputMapping) => {
   return async (eventData) => {
     console.log(`[Triggers] Event received for workflow '${workflow.name}'`)
-    
+
+    // Check if this event is for this workflow (for file watchers)
+    if (eventData.workflowId && eventData.workflowId !== workflowKey) {
+      return
+    }
+
     // Check if condition is met
     if (condition && !checkCondition(condition, eventData)) {
       console.log(`[Triggers] Condition not met for workflow '${workflow.name}', skipping`)
       return
     }
-    
+
     // Map event data to workflow inputs
     const workflowInputs = mapEventDataToInputs(eventData, inputMapping)
-    
+
+    // Add event data to context for template resolution
+    workflowInputs._eventData = eventData
+
     console.log(`[Triggers] Executing workflow '${workflow.name}' with inputs:`, workflowInputs)
-    
+
     try {
-      const result = await executeWorkflow(workflowKey, workflowInputs)
+      const result = await executeWorkflow(workflowKey, workflowInputs, { event: eventData })
       console.log(`[Triggers] Workflow '${workflow.name}' completed successfully`)
       return result
     } catch (error) {
@@ -127,10 +146,16 @@ const createEventHandler = (workflowKey, workflow, condition, inputMapping) => {
  * @returns {boolean} Whether condition is met
  */
 const checkCondition = (condition, eventData) => {
+  // Handle file change events
+  if (eventData.changeType && eventData.file) {
+    return checkFileCondition(condition, eventData)
+  }
+
+  // Handle email events
   const { email } = eventData
-  
+
   if (!email) return false
-  
+
   // Check subject pattern
   if (condition.subjectPattern) {
     const regex = new RegExp(condition.subjectPattern, 'i')
@@ -139,17 +164,17 @@ const checkCondition = (condition, eventData) => {
       return false
     }
   }
-  
+
   // Check attachment requirements
   if (condition.attachments) {
     const attachments = email.attachments || []
-    
+
     // Check minimum count
     if (condition.attachments.minCount && attachments.length < condition.attachments.minCount) {
       console.log(`[Triggers] Not enough attachments: ${attachments.length} < ${condition.attachments.minCount}`)
       return false
     }
-    
+
     // Check required types
     if (condition.attachments.requiredTypes) {
       for (const requiredType of condition.attachments.requiredTypes) {
@@ -163,7 +188,7 @@ const checkCondition = (condition, eventData) => {
           }
           return filename.includes(requiredType.toLowerCase())
         })
-        
+
         if (!hasType) {
           console.log(`[Triggers] Missing required attachment type: ${requiredType}`)
           return false
@@ -171,7 +196,36 @@ const checkCondition = (condition, eventData) => {
       }
     }
   }
-  
+
+  return true
+}
+
+/**
+ * Check if file change condition is met
+ * @param {Object} condition - Condition configuration
+ * @param {Object} eventData - Event data with file info
+ * @returns {boolean} Whether condition is met
+ */
+const checkFileCondition = (condition, eventData) => {
+  const { changeType, file } = eventData
+
+  // Check change type if specified in condition
+  if (condition.changeType && condition.changeType !== changeType) {
+    console.log(`[Triggers] Change type '${changeType}' does not match '${condition.changeType}'`)
+    return false
+  }
+
+  // Check file pattern if specified
+  if (condition.filePattern) {
+    const regexPattern = condition.filePattern.replace(/\./g, '\\.').replace(/\*/g, '.*').replace(/\?/g, '.')
+
+    const regex = new RegExp(`^${regexPattern}$`, 'i')
+    if (!regex.test(file.name)) {
+      console.log(`[Triggers] File '${file.name}' does not match pattern '${condition.filePattern}'`)
+      return false
+    }
+  }
+
   return true
 }
 

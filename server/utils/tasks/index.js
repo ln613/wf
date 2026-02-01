@@ -203,6 +203,40 @@ export const tasks = {
         }
       },
     },
+    moveFile: {
+      name: 'Move File',
+      inputs: [
+        { name: 'sourcePath', type: 'string', label: 'Source File Path', required: true },
+        { name: 'destinationFolder', type: 'string', label: 'Destination Folder', required: true },
+        { name: 'newFileName', type: 'string', label: 'New File Name (optional)', required: false },
+      ],
+      outputs: ['success', 'message', 'destinationPath'],
+      handler: async ({ sourcePath, destinationFolder, newFileName }) => {
+        const fs = await import('fs/promises')
+        const path = await import('path')
+        try {
+          validateMoveFileInput(sourcePath, destinationFolder)
+
+          // Ensure destination folder exists
+          await fs.mkdir(destinationFolder, { recursive: true })
+
+          // Determine destination file name
+          const fileName = newFileName || path.basename(sourcePath)
+          const destinationPath = path.join(destinationFolder, fileName)
+
+          // Move the file
+          await fs.rename(sourcePath, destinationPath)
+
+          return {
+            success: true,
+            message: `File moved successfully from ${sourcePath} to ${destinationPath}`,
+            destinationPath,
+          }
+        } catch (error) {
+          throw new Error(`Failed to move file: ${error.message}`)
+        }
+      },
+    },
   },
   llm: {
     ollamaGenerate: {
@@ -293,6 +327,15 @@ export const tasks = {
       handler: pdfToHtmls,
     },
   },
+}
+
+const validateMoveFileInput = (sourcePath, destinationFolder) => {
+  if (!sourcePath) {
+    throw new Error('Source path is required')
+  }
+  if (!destinationFolder) {
+    throw new Error('Destination folder is required')
+  }
 }
 
 export const getTaskByName = (taskName) => {

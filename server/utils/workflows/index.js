@@ -34,12 +34,14 @@ export const getAllWorkflows = () => {
   }))
 }
 
-export const executeWorkflow = async (workflowName, inputs = {}) => {
+export const executeWorkflow = async (workflowName, inputs = {}, additionalContext = {}) => {
   const workflow = getWorkflowByName(workflowName)
   if (!workflow) {
     throw new Error(`Workflow not found: ${workflowName}`)
   }
-  return runWorkflow(workflow, inputs)
+  // Merge additionalContext (like event data) into inputs
+  const mergedInputs = { ...inputs, ...additionalContext }
+  return runWorkflow(workflow, mergedInputs)
 }
 
 export { runWorkflow }

@@ -66,7 +66,7 @@ export const unregisterFileWatchingTrigger = (registrationKey) => {
 /**
  * Start watching files for a specific task configuration
  * @param {string} taskId - Unique task identifier
- * @param {Object} config - Configuration with folder, changeType, filePattern
+ * @param {Object} config - Configuration with folder, changeType, filePattern, workflowKey
  * @param {EventEmitter} eventEmitter - Event emitter to emit events
  */
 export const watchFiles = (taskId, config, eventEmitter) => {
@@ -74,12 +74,15 @@ export const watchFiles = (taskId, config, eventEmitter) => {
 
   const normalizedFolder = path.resolve(config.folder)
 
+  // Use workflowKey for registration if provided, otherwise use taskId
+  const registrationId = config.workflowKey || taskId
+
   console.log(
-    `[FileWatcher] Starting file watcher task: ${taskId} for ${config.changeType} in ${normalizedFolder}`,
+    `[FileWatcher] Starting file watcher task: ${taskId} (workflow: ${registrationId}) for ${config.changeType} in ${normalizedFolder}`,
   )
 
-  // Register this as a workflow trigger
-  const registrationKey = registerFileWatchingTrigger(taskId, config, eventEmitter)
+  // Register using workflowKey if available so events are properly matched
+  const registrationKey = registerFileWatchingTrigger(registrationId, config, eventEmitter)
 
   return registrationKey
 }

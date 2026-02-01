@@ -82,3 +82,13 @@
   - body: {the QC check result}
   - attachment: the pdf file, the generated report
 
+## Test File Watch
+
+### Trigger Condition
+
+- folder: /Users/nanli/t
+- type: new file added
+
+### Tasks
+
+- move the new file(s) to /Users/nanli/t/tmp

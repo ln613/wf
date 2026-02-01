@@ -188,4 +188,25 @@ export const testWorkflows = {
       },
     ],
   },
+  testFileWatch: {
+    name: 'Test File Watch',
+    category: 'test',
+    eventTrigger: {
+      event: {
+        type: 'watchFiles',
+        folder: '/Users/nanli/t',
+        changeType: 'created',
+      },
+    },
+    tasks: [
+      {
+        taskName: 'Move File',
+        inputs: {
+          sourcePath: '{{event.file.path}}',
+          destinationFolder: '/Users/nanli/t/tmp',
+        },
+        outputAs: 'moveResult',
+      },
+    ],
+  },
 }
