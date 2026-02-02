@@ -109,4 +109,31 @@ export const localWorkflows = {
       },
     ],
   },
+  comfyFsv: {
+    name: 'Comfy fsv',
+    category: 'local',
+    inputs: [
+      {
+        name: 'filePath',
+        type: 'file',
+        label: 'File Path',
+        required: true,
+      },
+    ],
+    tasks: [
+      {
+        taskName: 'Run ComfyUI Workflow',
+        inputs: {
+          workflowPath: './server/utils/comfy/fsv.json',
+          params: [{ key: '47.inputs.video', value: '{{filePath}}' }],
+          outputKey: 'images:31',
+        },
+        outputAs: 'result',
+      },
+    ],
+    outputs: ['fileName'],
+    outputMapping: {
+      fileName: '{{result}}',
+    },
+  },
 }

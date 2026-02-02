@@ -52,3 +52,21 @@
 ### Output
 
 - output successful/error info after each file is done
+
+## Comfy fsv
+
+### Input
+
+- file path
+
+### Tasks
+
+- comfy runWorkflow
+  - workflow path: /utils/comfy/fsv.json
+  - params:
+    - '47.inputs.video': file path
+  - output key: 'images:31'
+
+### Output
+
+- output the generated file name

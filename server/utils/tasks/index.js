@@ -1,4 +1,5 @@
 import { getLatestEmailWithAttachment, sendEmail } from './email.js'
+import { runWorkflow as comfyRunWorkflow } from './comfy.js'
 import {
   wait,
   navigate,
@@ -326,6 +327,18 @@ export const tasks = {
       ],
       outputs: ['folder'],
       handler: pdfToHtmls,
+    },
+  },
+  comfy: {
+    runWorkflow: {
+      name: 'Run ComfyUI Workflow',
+      inputs: [
+        { name: 'workflowPath', type: 'file', label: 'Workflow JSON File Path', required: true },
+        { name: 'params', type: 'array', label: 'Params to set (key/value pairs)', required: false },
+        { name: 'outputKey', type: 'string', label: 'Output Key', required: false },
+      ],
+      outputs: ['fileName'],
+      handler: comfyRunWorkflow,
     },
   },
   media: {
