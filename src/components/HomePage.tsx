@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getWorkflows, getTasks } from '../utils/api'
-import type { WorkflowCategory, TaskCategory, SelectedItem, ItemType } from '../types/workflow'
+import type { WorkflowCategory, TaskCategory, SelectedItem, TabType } from '../types/workflow'
 import './HomePage.css'
 
 interface HomePageProps {
@@ -8,8 +8,9 @@ interface HomePageProps {
 }
 
 export const HomePage = ({ onSelectItem }: HomePageProps) => {
-  const [activeTab, setActiveTab] = useState<ItemType>('workflow')
-  const [workflows, setWorkflows] = useState<WorkflowCategory[]>([])
+  const [activeTab, setActiveTab] = useState<TabType>('local')
+  const [localWorkflows, setLocalWorkflows] = useState<WorkflowCategory[]>([])
+  const [testWorkflows, setTestWorkflows] = useState<WorkflowCategory[]>([])
   const [tasks, setTasks] = useState<TaskCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -23,7 +24,10 @@ export const HomePage = ({ onSelectItem }: HomePageProps) => {
       setLoading(true)
       setError(null)
       const [workflowData, taskData] = await Promise.all([getWorkflows(), getTasks()])
-      setWorkflows(workflowData)
+      const local = workflowData.filter((c: WorkflowCategory) => c.category === 'local')
+      const test = workflowData.filter((c: WorkflowCategory) => c.category === 'test')
+      setLocalWorkflows(local)
+      setTestWorkflows(test)
       setTasks(taskData)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load data')
@@ -53,10 +57,16 @@ export const HomePage = ({ onSelectItem }: HomePageProps) => {
   const renderTabs = () => (
     <div className="tabs">
       <button
-        className={`tab ${activeTab === 'workflow' ? 'active' : ''}`}
-        onClick={() => setActiveTab('workflow')}
+        className={`tab ${activeTab === 'local' ? 'active' : ''}`}
+        onClick={() => setActiveTab('local')}
       >
-        Workflows
+        Local Workflows
+      </button>
+      <button
+        className={`tab ${activeTab === 'test' ? 'active' : ''}`}
+        onClick={() => setActiveTab('test')}
+      >
+        Test Workflows
       </button>
       <button
         className={`tab ${activeTab === 'task' ? 'active' : ''}`}
@@ -67,21 +77,18 @@ export const HomePage = ({ onSelectItem }: HomePageProps) => {
     </div>
   )
 
-  const renderWorkflows = () => (
+  const renderWorkflows = (workflows: WorkflowCategory[]) => (
     <div className="list-container">
-      {workflows.map((category) => (
-        <div key={category.category} className="category">
-          <h3 className="category-title">{category.category}</h3>
-          <ul className="item-list">
-            {category.workflows.map((workflow) => (
-              <li key={workflow.key} className="item" onClick={() => handleWorkflowSelect(workflow)}>
-                <span className="item-name">{workflow.name}</span>
-                <span className="item-info">{workflow.tasks.length} tasks</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
+      <ul className="item-list">
+        {workflows.flatMap((category) =>
+          category.workflows.map((workflow) => (
+            <li key={workflow.key} className="item" onClick={() => handleWorkflowSelect(workflow)}>
+              <span className="item-name">{workflow.name}</span>
+              <span className="item-info">{workflow.tasks.length} tasks</span>
+            </li>
+          )),
+        )}
+      </ul>
     </div>
   )
 
@@ -106,11 +113,22 @@ export const HomePage = ({ onSelectItem }: HomePageProps) => {
   if (loading) return <div className="loading">Loading...</div>
   if (error) return <div className="error">{error}</div>
 
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'local':
+        return renderWorkflows(localWorkflows)
+      case 'test':
+        return renderWorkflows(testWorkflows)
+      case 'task':
+        return renderTasks()
+    }
+  }
+
   return (
     <div className="home-page">
       <h1>Workflow Manager</h1>
       {renderTabs()}
-      {activeTab === 'workflow' ? renderWorkflows() : renderTasks()}
+      {renderContent()}
     </div>
   )
 }

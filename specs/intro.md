@@ -28,6 +28,8 @@ A trigger can be:
 
 A workflow can always be triggered through API or as a sub workflow. In order to be triggered by an event, the event trigger has to be defined as part of the workflow definition.
 
+For those workflows with auto/event triggers, check the env value in the .env file to determine whether to register the triggers on the corresponding background tasks. The env key/value format: {workflow name (joined by _)}_TRIGGER=1. 1 means on, 0 means off. Default to off for all triggers.
+
 ## API
 
 Create an API for triggering the workflow
@@ -39,8 +41,8 @@ Create an API for triggering the workflow
 
 ### Home Page
 
-- Display 2 tabs - Workflows and Tasks
-- Upon selecting the tab, show the list of all workflows/tasks, grouped by the categories (each category corresponds to a markdown file)
+- Display 3 tabs - Local Workflows, Test Workflows and Tasks
+- Upon selecting the tab, show the list of all workflows/tasks. For tasks, group them by categories (each category corresponds to a markdown file)
 - When selecting a workflow/task, go to the call page
 
 ### Call page

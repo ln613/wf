@@ -37,6 +37,7 @@ export interface WorkflowCategory {
   workflows: WorkflowDefinition[]
 }
 
+export type TabType = 'local' | 'test' | 'task'
 export type ItemType = 'workflow' | 'task'
 
 export interface SelectedItem {

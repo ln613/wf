@@ -1,8 +1,10 @@
 import { testWorkflows } from './definitions/test.js'
+import { localWorkflows } from './definitions/local.js'
 import { runWorkflow } from './engine.js'
 
 export const workflows = {
   ...testWorkflows,
+  ...localWorkflows,
 }
 
 export const getWorkflowByName = (workflowName) => {
