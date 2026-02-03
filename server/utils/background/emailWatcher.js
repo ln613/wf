@@ -27,7 +27,9 @@ export const watchEmail = (taskId, config, eventEmitter) => {
   
   const checkForNewEmails = async () => {
     try {
+      console.log('check for new email...')
       const result = await fetchLatestEmailInfo(credentials)
+      console.log(result)
       
       if (result && result.uid) {
         if (isFirstCheck) {
@@ -119,24 +121,88 @@ const getGmailAppPasswordCredentials = (accountEnvVar) => {
  */
 const fetchLatestEmailInfo = async (credentials) => {
   return new Promise((resolve, reject) => {
+    const CONNECTION_TIMEOUT = 30000 // 30 seconds timeout
+    let timeoutId = null
+    let isResolved = false
+
+    const cleanup = (imap) => {
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        timeoutId = null
+      }
+      try {
+        imap.end()
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+    }
+
     const imap = new Imap({
       user: credentials.email,
       password: credentials.appPassword,
       host: 'imap.gmail.com',
       port: 993,
       tls: true,
-      tlsOptions: { rejectUnauthorized: false },
+      tlsOptions: {
+        rejectUnauthorized: false,
+        servername: 'imap.gmail.com',
+      },
+      connTimeout: CONNECTION_TIMEOUT,
+      authTimeout: CONNECTION_TIMEOUT,
+      debug: (msg) => console.log('[IMAP Debug]', msg),
     })
 
+    // Set up connection timeout
+    timeoutId = setTimeout(() => {
+      if (!isResolved) {
+        isResolved = true
+        console.error('[WatchEmail] IMAP connection timeout after 30s')
+        cleanup(imap)
+        reject(new Error('IMAP connection timeout'))
+      }
+    }, CONNECTION_TIMEOUT)
+
     imap.once('ready', () => {
-      openInboxAndFetchLatestWithUid(imap, resolve, reject)
+      if (isResolved) return
+      console.log('[WatchEmail] IMAP connection ready')
+      clearTimeout(timeoutId)
+      timeoutId = null
+      openInboxAndFetchLatestWithUid(imap, (result) => {
+        isResolved = true
+        resolve(result)
+      }, (err) => {
+        isResolved = true
+        reject(err)
+      })
     })
 
     imap.once('error', (err) => {
+      if (isResolved) return
+      isResolved = true
       console.error('[WatchEmail] IMAP error:', err.message)
+      cleanup(imap)
       reject(err)
     })
 
+    imap.once('end', () => {
+      console.log('[WatchEmail] IMAP connection ended')
+    })
+
+    imap.once('close', (hadError) => {
+      console.log(`[WatchEmail] IMAP connection closed${hadError ? ' with error' : ''}`)
+      if (!isResolved) {
+        isResolved = true
+        cleanup(imap)
+        reject(new Error('IMAP connection closed unexpectedly'))
+      }
+    })
+
+    // Listen for BYE messages (quota exceeded, etc.)
+    imap.on('alert', (message) => {
+      console.warn('[WatchEmail] IMAP alert:', message)
+    })
+
+    console.log('[WatchEmail] Attempting IMAP connection...')
     imap.connect()
   })
 }

@@ -126,7 +126,7 @@ export const backgroundTasks = {
     description: 'Watch an email account for new emails and emit events',
     inputs: [
       { name: 'emailAccount', type: 'string', label: 'Email Account (env var)', required: true },
-      { name: 'pollingInterval', type: 'number', label: 'Polling Interval (seconds)', required: false, default: 10 },
+      { name: 'pollingInterval', type: 'number', label: 'Polling Interval (seconds)', required: false, default: 60 },
     ],
     events: ['newEmail'],
   },

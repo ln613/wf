@@ -100,7 +100,7 @@ const startBackgroundTaskForEvent = (event, workflowKey) => {
   if (event.type === 'watchEmail') {
     startBackgroundTask('watchEmail', {
       emailAccount: event.emailAccount,
-      pollingInterval: event.pollingInterval || 10,
+      pollingInterval: event.pollingInterval || 60,
     })
   } else if (event.type === 'watchFiles') {
     startBackgroundTask('watchFiles', {

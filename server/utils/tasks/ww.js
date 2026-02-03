@@ -1343,9 +1343,9 @@ const compareAnalytes = (analyte1, analyte2, key) => {
  */
 const CROSS_LIST_EQUIVALENCES = [
   {
-    list1Name: 'phosphorus, total (as p)',
-    list2Name: 'phosphorus (total, apha 4500-p)',
-    category: 'calculated parameters',
+    list1Name: 'Phosphorus, Total (as P)',
+    list2Name: 'Phosphorus (total, APHA 4500-P)',
+    category: 'General Parameters',
   },
 ]
 

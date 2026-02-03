@@ -116,7 +116,7 @@
     - "{analyte}, {type}" = "{analyte}, {type} as ..." = "{analyte}, {type} (as ...)" = "{analyte} ({type})" = "{analyte} ({type}, as ...)" = "{analyte} ({type}, by ...)" = "{type} {analyte}" = , type can be "dissolved" or "total", "as ..."/"by ..." is optional
     - "conductivity" = "conductivity (ec)"
     - "methyl tert-butyl ether" = "methyl tert-butyl ether (MTBE)"
-    - "Phosphorus, Total (as P)" under category "Calculated Parameters" in list 1 = "Phosphorus (total, APHA 4500-P)" under category "Calculated Parameters" in list 2
+    - "Phosphorus, Total (as P)" under category "General Parameters" in list 1 = "Phosphorus (total, APHA 4500-P)" under category "General Parameters" in list 2
 
 ### Output
 

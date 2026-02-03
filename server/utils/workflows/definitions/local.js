@@ -6,7 +6,7 @@ export const localWorkflows = {
       event: {
         type: 'watchEmail',
         emailAccount: 'GMAIL_1',
-        pollingInterval: 10,
+        pollingInterval: 60,
       },
       condition: {
         subjectPattern: 'FW:\\s*CARO.*Work Order',
