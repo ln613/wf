@@ -57,6 +57,21 @@
 
 The element(s)
 
+## Wait for element
+
+### Input
+
+Same input as Find element
+
+### Action
+
+- set interval of 1 second to find the element
+- if found, clear the interval and return the element(s)
+- if still not found after 30 seconds, clear the interval and return not found error
+
+### Output
+
+The element(s) or not found error
 
 ## Get attribute
 
@@ -64,7 +79,7 @@ The element(s)
 
 Same input as Find element
 
-- the attributes to extract
+- the array of attributes to extract
 
 ### Action
 

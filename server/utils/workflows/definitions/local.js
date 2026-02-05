@@ -74,6 +74,66 @@ export const localWorkflows = {
       },
     ],
   },
+  htmlExtract: {
+    name: 'HTML Extract',
+    category: 'local',
+    inputs: [
+      {
+        name: 'url',
+        type: 'string',
+        label: 'URL',
+        required: true,
+      },
+      {
+        name: 'querySelector',
+        type: 'string',
+        label: 'Query Selector',
+        required: true,
+      },
+      {
+        name: 'attributes',
+        type: 'string',
+        label: 'Attributes (comma separated)',
+        required: false,
+        default: 'text',
+      },
+    ],
+    tasks: [
+      {
+        taskName: 'Open Browser Window',
+        inputs: {
+          browserType: 'chrome',
+          url: '{{url}}',
+        },
+        outputAs: 'browserWindow',
+      },
+      {
+        taskName: 'Wait for Element',
+        inputs: {
+          connectionId: '{{browserWindow.connectionId}}',
+          selector: '{{querySelector}}',
+        },
+        outputAs: 'waitResult',
+      },
+      {
+        condition: '{{waitResult.found}}',
+        taskName: 'Get Attribute',
+        inputs: {
+          connectionId: '{{browserWindow.connectionId}}',
+          selector: '{{querySelector}}',
+          attributes: '{{attributes}}',
+        },
+        outputAs: 'extractedAttributes',
+      },
+      {
+        taskName: 'Close Browser Window',
+        inputs: {
+          connectionId: '{{browserWindow.connectionId}}',
+        },
+      },
+    ],
+    output: ['extractedAttributes', 'waitResult'],
+  },
   ksCut: {
     name: 'KS Cut',
     category: 'local',

@@ -205,11 +205,58 @@ export const findElements = async ({ connectionId, selector }) => {
 }
 
 /**
+ * Wait for element(s) to appear on a page
+ * @param {Object} inputs
+ * @param {string} inputs.connectionId - Browser connection ID from findBrowserWindow
+ * @param {string} inputs.selector - CSS query selector
+ * @param {number} inputs.timeoutSeconds - Maximum seconds to wait (default: 30)
+ * @param {number} inputs.pollIntervalSeconds - Seconds between polls (default: 1)
+ * @returns {Object} Result with found status and count
+ */
+export const waitForElement = async ({
+  connectionId,
+  selector,
+  timeoutSeconds = 30,
+  pollIntervalSeconds = 1,
+}) => {
+  const connection = browserConnections.get(connectionId)
+  if (!connection) {
+    throw new Error(`No active browser connection found for ID: ${connectionId}`)
+  }
+
+  const { page } = connection
+  const startTime = Date.now()
+  const timeoutMs = timeoutSeconds * 1000
+  const pollIntervalMs = pollIntervalSeconds * 1000
+
+  while (Date.now() - startTime < timeoutMs) {
+    const elements = await page.$$(selector)
+
+    if (elements.length > 0) {
+      return {
+        found: true,
+        count: elements.length,
+        selector,
+      }
+    }
+
+    await sleep(pollIntervalMs)
+  }
+
+  return {
+    found: false,
+    count: 0,
+    selector,
+    error: `Element not found after ${timeoutSeconds} seconds`,
+  }
+}
+
+/**
  * Get attribute(s) from element(s)
  * @param {Object} inputs
  * @param {string} inputs.connectionId - Browser connection ID
  * @param {string} inputs.selector - CSS query selector
- * @param {string|string[]} inputs.attributes - Attribute(s) to extract
+ * @param {string|string[]} inputs.attributes - Attribute(s) to extract (comma-separated string or array)
  * @returns {Object|Object[]|null} Element attributes or array of element attributes
  */
 export const getAttribute = async ({ connectionId, selector, attributes }) => {
@@ -221,8 +268,12 @@ export const getAttribute = async ({ connectionId, selector, attributes }) => {
 
     const { page } = connection
 
-    // Ensure attributes is an array
-    const attrList = Array.isArray(attributes) ? attributes : [attributes]
+    // Ensure attributes is an array (handle comma-separated string)
+    const attrList = Array.isArray(attributes)
+      ? attributes
+      : typeof attributes === 'string'
+        ? attributes.split(',').map((s) => s.trim())
+        : [attributes]
 
     // Find all elements matching the selector
     const elements = await page.$$(selector)

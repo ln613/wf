@@ -7,6 +7,7 @@ import {
   openBrowserWindow,
   closeBrowserWindow,
   findElements,
+  waitForElement,
   getAttribute,
   setAttribute,
   enterText,
@@ -90,6 +91,17 @@ export const tasks = {
       ],
       outputs: ['found', 'count', 'selector'],
       handler: findElements,
+    },
+    waitForElement: {
+      name: 'Wait for Element',
+      inputs: [
+        { name: 'connectionId', type: 'string', label: 'Browser Connection ID', required: true },
+        { name: 'selector', type: 'string', label: 'CSS Selector', required: true },
+        { name: 'timeoutSeconds', type: 'number', label: 'Timeout (seconds)', required: false, default: 30 },
+        { name: 'pollIntervalSeconds', type: 'number', label: 'Poll Interval (seconds)', required: false, default: 1 },
+      ],
+      outputs: ['found', 'count', 'selector', 'error'],
+      handler: waitForElement,
     },
     getAttribute: {
       name: 'Get Attribute',

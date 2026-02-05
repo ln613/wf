@@ -33,6 +33,26 @@
   - body: {the QC check result}
   - attachment: the pdf file, the generated report
 
+## HTML Extract
+
+### Input
+
+- url
+- query selector
+- attributes (comma separated list) = ['text']
+
+### Tasks
+
+- Open browser window (chrome, url)
+- Wait for the element (query selector)
+- if found, for each of the elements:
+  - Get attribute (attributes)
+- close browser window
+
+### Output
+
+- output the attribute values of all elements or not found error
+
 ## KS Cut
 
 ### Input
