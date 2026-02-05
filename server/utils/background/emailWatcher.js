@@ -29,7 +29,10 @@ export const watchEmail = (taskId, config, eventEmitter) => {
     try {
       console.log('check for new email...')
       const result = await fetchLatestEmailInfo(credentials)
-      console.log(result)
+      if (result) {
+        const { body, ...emailWithoutBody } = result.email || {}
+        console.log({ uid: result.uid, email: emailWithoutBody })
+      }
       
       if (result && result.uid) {
         if (isFirstCheck) {
@@ -149,7 +152,7 @@ const fetchLatestEmailInfo = async (credentials) => {
       },
       connTimeout: CONNECTION_TIMEOUT,
       authTimeout: CONNECTION_TIMEOUT,
-      debug: (msg) => console.log('[IMAP Debug]', msg),
+      // debug: (msg) => console.log('[IMAP Debug]', msg),
     })
 
     // Set up connection timeout

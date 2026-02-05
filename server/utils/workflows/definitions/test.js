@@ -110,4 +110,61 @@ export const testWorkflows = {
       },
     ],
   },
+  testWW: {
+    name: 'Test WW',
+    category: 'test',
+    inputs: [
+      {
+        name: 'pdfPath',
+        type: 'file',
+        label: 'PDF File Path',
+        required: true,
+      },
+    ],
+    tasks: [
+      {
+        taskName: 'PDF to Htmls',
+        inputs: {
+          pdfPath: '{{pdfPath}}',
+        },
+        outputAs: 'pdfResult',
+      },
+      {
+        taskName: 'Parse All QC Htmls',
+        inputs: {
+          folder: '{{pdfResult.folder}}',
+          filterFn: (html) => html.includes('<b>TEST RESULTS</b>'),
+        },
+        outputAs: 'H',
+      },
+      {
+        taskName: 'Generate Report',
+        inputs: {
+          labReportId: '{{H.metadata.labReportId}}',
+        },
+        outputAs: 'reportResult',
+      },
+      {
+        taskName: 'Parse QC Excel',
+        inputs: {
+          labReportId: '{{H.metadata.labReportId}}',
+        },
+        outputAs: 'E',
+      },
+      {
+        condition: '{{E}}',
+        tasks: [
+          {
+            taskName: 'QC Check',
+            inputs: {
+              analyteList1: '{{H.analytes}}',
+              analyteList2: '{{E.analytes}}',
+            },
+            outputAs: 'qcResult',
+          },
+        ],
+      },
+    ],
+    output: 'qcResult',
+  },
 }

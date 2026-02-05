@@ -55,3 +55,23 @@
 ### Tasks
 
 - move the new file(s) to /Users/nanli/t/tmp
+
+## Test WW
+
+### Input
+
+- the path of the pdf file
+
+### Tasks
+
+- PDF to Htmls
+- Parse All QC Htmls (as H):
+  - in the html folder
+  - contains a <p> with content <b>TEST RESULTS</b>
+- Generate report with H.metadata.labReportId
+- Parse QC Excel with H.metadata.labReportId (as E)
+- if E is not null, perform QC check with H.analytes and E.analytes
+
+### Output
+
+- the QC check result

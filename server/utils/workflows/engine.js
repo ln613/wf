@@ -88,6 +88,18 @@ const validateWorkflow = (workflow) => {
 }
 
 const executeTaskStep = async (taskStep, context) => {
+  // Handle conditional execution
+  if (taskStep.condition !== undefined) {
+    const conditionMet = evaluateCondition(taskStep.condition, context)
+    if (!conditionMet) {
+      return undefined
+    }
+    // If condition is met and there are nested tasks, execute them
+    if (taskStep.tasks && Array.isArray(taskStep.tasks)) {
+      return executeNestedTasks(taskStep.tasks, context)
+    }
+  }
+
   // Handle forEach loop
   if (taskStep.forEach) {
     return executeForEach(taskStep, context)
@@ -109,6 +121,55 @@ const executeTaskStep = async (taskStep, context) => {
   }
   
   return result
+}
+
+/**
+ * Evaluate a condition expression
+ * Supports template variables like {{E}} which checks if E is truthy (not null/undefined)
+ * @param {string} condition - Condition expression
+ * @param {Object} context - Context object with variable values
+ * @returns {boolean} True if condition is met
+ */
+const evaluateCondition = (condition, context) => {
+  if (typeof condition === 'boolean') {
+    return condition
+  }
+  
+  if (typeof condition === 'string') {
+    // Check if it's a simple template variable check like {{E}}
+    const singleTemplateMatch = condition.match(/^\{\{([\w.]+)\}\}$/)
+    if (singleTemplateMatch) {
+      const value = getNestedValue(context, singleTemplateMatch[1])
+      // Check if value is truthy (not null, undefined, false, 0, '', etc.)
+      return value !== null && value !== undefined && value !== false
+    }
+    
+    // For more complex conditions, resolve the template and evaluate
+    const resolved = resolveTemplateString(condition, context)
+    return resolved !== '' && resolved !== 'false' && resolved !== 'null' && resolved !== 'undefined'
+  }
+  
+  return Boolean(condition)
+}
+
+/**
+ * Execute nested tasks and return combined output
+ * @param {Array} tasks - Array of task steps
+ * @param {Object} context - Context object
+ * @returns {Object} Combined output from all tasks
+ */
+const executeNestedTasks = async (tasks, context) => {
+  let nestedContext = { ...context }
+  let lastOutput = undefined
+  
+  for (const subTask of tasks) {
+    lastOutput = await executeTaskStep(subTask, nestedContext)
+    if (lastOutput !== undefined) {
+      nestedContext = { ...nestedContext, ...lastOutput }
+    }
+  }
+  
+  return lastOutput
 }
 
 /**

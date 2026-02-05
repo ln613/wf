@@ -1072,8 +1072,8 @@ const normalizeAnalyteName = (analyteName) => {
     return `${commaAsMatch[1].trim()} (${commaAsMatch[2].toLowerCase()})`
   }
   
-  // Handle "{analyte} ({type})" or "{analyte} ({type}, as ...)" or "{analyte} ({type}, by ...)" format
-  const parenMatch = name.match(/^(.+)\s*\((dissolved|total)(?:,\s*(?:as|by)\s+[^)]+)?\)$/i)
+  // Handle "{analyte} ({type})" or "{analyte} ({type}, ...)" format (any suffix after type)
+  const parenMatch = name.match(/^(.+)\s*\((dissolved|total)(?:,\s*[^)]+)?\)$/i)
   if (parenMatch) {
     return `${parenMatch[1].trim()} (${parenMatch[2].toLowerCase()})`
   }
@@ -1243,6 +1243,11 @@ const compareValues = (value1, value2, fieldPath, context = {}) => {
     return []
   }
 
+  // Skip analyte name comparison for cross-list equivalent analytes
+  if (fieldPath === 'analyte' && context.isCrossListEquivalent) {
+    return []
+  }
+
   // Skip unit comparison for pH analyte
   if (fieldPath === 'unit' && shouldSkipUnitComparisonForAnalyte(context.analyteName)) {
     return []
@@ -1316,11 +1321,13 @@ const compareObjects = (obj1, obj2, parentPath = '', context = {}) => {
  * @param {Object} analyte1 - First analyte
  * @param {Object} analyte2 - Second analyte
  * @param {string} key - Analyte key for identification
+ * @param {Object} options - Comparison options
+ * @param {boolean} options.isCrossListEquivalent - If true, skip analyte name comparison
  * @returns {Object|null} Difference object or null if no differences
  */
-const compareAnalytes = (analyte1, analyte2, key) => {
+const compareAnalytes = (analyte1, analyte2, key, options = {}) => {
   const analyteName = analyte1?.analyte || analyte2?.analyte
-  const context = { analyteName }
+  const context = { analyteName, isCrossListEquivalent: options.isCrossListEquivalent }
   const fieldDifferences = compareObjects(analyte1, analyte2, '', context)
 
   if (fieldDifferences.length > 0) {
@@ -1350,44 +1357,29 @@ const CROSS_LIST_EQUIVALENCES = [
 ]
 
 /**
- * Find cross-list equivalent key for an analyte from list 1 in list 2
- * @param {Object} analyte - Analyte from list 1
- * @param {Map} map2 - Map of list 2 analytes
- * @returns {string|null} The equivalent key in list 2, or null if no equivalence
+ * Find cross-list equivalent key for an analyte
+ * @param {Object} analyte - Analyte to find equivalent for
+ * @param {Map} targetMap - Map of analytes to search in
+ * @param {string} direction - 'forward' (list1 -> list2) or 'reverse' (list2 -> list1)
+ * @returns {string|null} The equivalent key in the target map, or null if no equivalence
  */
-const findCrossListEquivalentKey = (analyte, map2) => {
+const findCrossListEquivalentKey = (analyte, targetMap, direction = 'forward') => {
   const analyteName = (analyte.analyte || '').toLowerCase().trim()
   const category = (analyte.category || '').toLowerCase().trim()
   const labSampleId = analyte.sampleInfo?.labSampleId || ''
 
-  for (const rule of CROSS_LIST_EQUIVALENCES) {
-    if (analyteName === rule.list1Name && category === rule.category) {
-      // Build the key for the equivalent analyte in list 2
-      const equivalentKey = `${labSampleId}|${analyte.category}|${normalizeAnalyteName(rule.list2Name)}`
-      if (map2.has(equivalentKey)) {
-        return equivalentKey
-      }
-    }
-  }
-  return null
-}
-
-/**
- * Find cross-list equivalent key for an analyte from list 2 in list 1
- * @param {Object} analyte - Analyte from list 2
- * @param {Map} map1 - Map of list 1 analytes
- * @returns {string|null} The equivalent key in list 1, or null if no equivalence
- */
-const findReverseCrossListEquivalentKey = (analyte, map1) => {
-  const analyteName = (analyte.analyte || '').toLowerCase().trim()
-  const category = (analyte.category || '').toLowerCase().trim()
-  const labSampleId = analyte.sampleInfo?.labSampleId || ''
+  // Determine which rule fields to use based on direction
+  const sourceField = direction === 'forward' ? 'list1Name' : 'list2Name'
+  const targetField = direction === 'forward' ? 'list2Name' : 'list1Name'
 
   for (const rule of CROSS_LIST_EQUIVALENCES) {
-    if (analyteName === rule.list2Name && category === rule.category) {
-      // Build the key for the equivalent analyte in list 1
-      const equivalentKey = `${labSampleId}|${analyte.category}|${normalizeAnalyteName(rule.list1Name)}`
-      if (map1.has(equivalentKey)) {
+    const sourceNameMatch = analyteName === rule[sourceField].toLowerCase()
+    const categoryMatch = category === rule.category.toLowerCase()
+    
+    if (sourceNameMatch && categoryMatch) {
+      // Build the key for the equivalent analyte in the target map
+      const equivalentKey = `${labSampleId}|${analyte.category}|${normalizeAnalyteName(rule[targetField])}`
+      if (targetMap.has(equivalentKey)) {
         return equivalentKey
       }
     }
@@ -1414,7 +1406,7 @@ const compareAnalyteLists = (list1, list2) => {
 
     if (!analyte1) {
       // Check if this analyte in list 2 has a cross-list equivalent in list 1
-      const equivalentKey = findReverseCrossListEquivalentKey(analyte2, map1)
+      const equivalentKey = findCrossListEquivalentKey(analyte2, map1, 'reverse')
       if (equivalentKey && !processedCrossListPairs.has(`${equivalentKey}|${key}`)) {
         // This will be handled when we process the equivalent key from list 1
         processedCrossListPairs.add(`${equivalentKey}|${key}`)
@@ -1432,12 +1424,12 @@ const compareAnalyteLists = (list1, list2) => {
 
     if (!analyte2) {
       // Check if this analyte in list 1 has a cross-list equivalent in list 2
-      const equivalentKey = findCrossListEquivalentKey(analyte1, map2)
+      const equivalentKey = findCrossListEquivalentKey(analyte1, map2, 'forward')
       if (equivalentKey) {
-        // Found a cross-list equivalent, compare them instead
+        // Found a cross-list equivalent, compare them instead (skip analyte name comparison)
         const equivalentAnalyte2 = map2.get(equivalentKey)
         processedCrossListPairs.add(`${key}|${equivalentKey}`)
-        const diff = compareAnalytes(analyte1, equivalentAnalyte2, key)
+        const diff = compareAnalytes(analyte1, equivalentAnalyte2, key, { isCrossListEquivalent: true })
         if (diff) {
           differences.push(diff)
         }
