@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { runWorkflow, runTask } from '../utils/api'
 import type { SelectedItem, TaskInput } from '../types/workflow'
+import { FilePicker } from './FilePicker'
 import './CallPage.css'
 
 interface CallPageProps {
@@ -171,6 +172,19 @@ export const CallPage = ({ item, onBack }: CallPageProps) => {
 
     if (input.type === 'radio') {
       return renderRadioField(input)
+    }
+
+    if (input.type === 'file') {
+      return (
+        <div key={input.name} className="input-group">
+          <FilePicker
+            value={value}
+            onChange={(path) => handleInputChange(input.name, path)}
+            label={input.label}
+            required={input.required}
+          />
+        </div>
+      )
     }
 
     if (input.type === 'text') {

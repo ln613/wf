@@ -174,26 +174,52 @@ export const localWorkflows = {
     category: 'local',
     inputs: [
       {
+        name: 'type',
+        type: 'radio',
+        label: 'Workflow Type',
+        required: false,
+        default: 'fsv',
+        options: [
+          { value: 'fsv', text: 'fsv' },
+          { value: 'fsvr', text: 'fsvr' },
+          { value: 'fsi', text: 'fsi' },
+        ],
+      },
+      {
         name: 'filePath',
         type: 'file',
-        label: 'File Path',
+        label: 'File or Folder Path',
         required: true,
+      },
+      {
+        name: 'count',
+        type: 'radio',
+        label: 'Face Count',
+        required: false,
+        default: '1',
+        options: [
+          { value: '1', text: '1' },
+          { value: '2', text: '2' },
+          { value: '3', text: '3' },
+        ],
       },
     ],
     tasks: [
       {
-        taskName: 'Run ComfyUI Workflow',
+        taskName: 'Comfy FSV Process',
         inputs: {
-          workflowPath: './server/utils/comfy/fsv.json',
-          params: [{ key: '47.inputs.video', value: '{{filePath}}' }],
-          outputKey: 'images:31',
+          type: '{{type}}',
+          filePath: '{{filePath}}',
+          count: '{{count}}',
         },
         outputAs: 'result',
       },
     ],
-    outputs: ['fileName'],
+    outputs: ['success', 'results', 'message'],
     outputMapping: {
-      fileName: '{{result}}',
+      success: '{{result.success}}',
+      results: '{{result.results}}',
+      message: '{{result.message}}',
     },
   },
 }

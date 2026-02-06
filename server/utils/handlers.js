@@ -2,6 +2,13 @@ import { get, save, remove } from './db.js'
 import { ObjectId } from 'mongodb'
 import { executeWorkflow, getAllWorkflows } from './workflows/index.js'
 import { getAllTasks, getTaskByName } from './tasks/index.js'
+import { readdir, stat } from 'fs/promises'
+import { join, dirname, basename } from 'path'
+import { homedir } from 'os'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+
+const execAsync = promisify(exec)
 
 const getTodos = async () => {
   return get('todos', {}, { sort: { createdAt: -1 } })
@@ -91,6 +98,105 @@ const validateTaskInput = (body) => {
   if (!body.task) throw new Error('Task name is required')
 }
 
+const openFilePicker = async (body) => {
+  const mode = body?.mode || 'folder' // 'file' or 'folder'
+  const initialDir = body?.initialDir || homedir()
+
+  try {
+    if (mode === 'folder') {
+      return await openFolderPicker(initialDir)
+    } else {
+      return await openFilePickerDialog(initialDir)
+    }
+  } catch (error) {
+    throw new Error(`File picker error: ${error.message}`)
+  }
+}
+
+const openFolderPicker = async (initialDir) => {
+  const tempFile = join(homedir(), '.folder_picker_result.txt')
+  const psFile = join(homedir(), '.folder_picker.ps1')
+  const escapedPath = initialDir.replace(/'/g, "''")
+  const escapedTempFile = tempFile.replace(/'/g, "''")
+
+  const psScript = `
+Add-Type -AssemblyName System.Windows.Forms
+$browser = New-Object System.Windows.Forms.FolderBrowserDialog
+$browser.Description = 'Select a folder'
+$browser.SelectedPath = '${escapedPath}'
+$browser.ShowNewFolderButton = $true
+$form = New-Object System.Windows.Forms.Form
+$form.TopMost = $true
+$result = $browser.ShowDialog($form)
+if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
+  [System.IO.File]::WriteAllText('${escapedTempFile}', $browser.SelectedPath, [System.Text.Encoding]::UTF8)
+}
+`
+
+  try {
+    const fs = await import('fs/promises')
+    await fs.writeFile(psFile, psScript, 'utf8')
+    await fs.writeFile(tempFile, '', 'utf8')
+
+    await execAsync(`powershell -NoProfile -STA -ExecutionPolicy Bypass -File "${psFile}"`)
+
+    const selectedPath = (await fs.readFile(tempFile, 'utf8')).trim()
+    await fs.unlink(psFile).catch(() => {})
+    await fs.unlink(tempFile).catch(() => {})
+
+    if (!selectedPath) {
+      return { cancelled: true }
+    }
+
+    return { path: selectedPath, cancelled: false }
+  } catch (error) {
+    console.error('Folder picker error:', error)
+    return { cancelled: true, error: error.message }
+  }
+}
+
+const openFilePickerDialog = async (initialDir) => {
+  const tempFile = join(homedir(), '.file_picker_result.txt')
+  const psFile = join(homedir(), '.file_picker.ps1')
+  const escapedPath = initialDir.replace(/'/g, "''")
+  const escapedTempFile = tempFile.replace(/'/g, "''")
+
+  const psScript = `
+Add-Type -AssemblyName System.Windows.Forms
+$dialog = New-Object System.Windows.Forms.OpenFileDialog
+$dialog.InitialDirectory = '${escapedPath}'
+$dialog.Filter = 'All Files (*.*)|*.*'
+$dialog.Title = 'Select a file'
+$form = New-Object System.Windows.Forms.Form
+$form.TopMost = $true
+$result = $dialog.ShowDialog($form)
+if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
+  [System.IO.File]::WriteAllText('${escapedTempFile}', $dialog.FileName, [System.Text.Encoding]::UTF8)
+}
+`
+
+  try {
+    const fs = await import('fs/promises')
+    await fs.writeFile(psFile, psScript, 'utf8')
+    await fs.writeFile(tempFile, '', 'utf8')
+
+    await execAsync(`powershell -NoProfile -STA -ExecutionPolicy Bypass -File "${psFile}"`)
+
+    const selectedPath = (await fs.readFile(tempFile, 'utf8')).trim()
+    await fs.unlink(psFile).catch(() => {})
+    await fs.unlink(tempFile).catch(() => {})
+
+    if (!selectedPath) {
+      return { cancelled: true }
+    }
+
+    return { path: selectedPath, cancelled: false }
+  } catch (error) {
+    console.error('File picker error:', error)
+    return { cancelled: true, error: error.message }
+  }
+}
+
 export const apiHandlers = {
   get: {
     todos: getTodos,
@@ -103,5 +209,6 @@ export const apiHandlers = {
     seed: seedTodos,
     workflow: runWorkflowHandler,
     task: runTaskHandler,
+    openFilePicker: openFilePicker,
   },
 }

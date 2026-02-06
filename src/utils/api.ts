@@ -41,3 +41,11 @@ export const runWorkflow = (workflow: string, inputs: Record<string, unknown>) =
 
 export const runTask = (task: string, inputs: Record<string, unknown> = {}) =>
   apiPost('task', { task, inputs })
+
+export interface FilePickerResult {
+  path?: string
+  cancelled: boolean
+}
+
+export const openFilePicker = (mode: 'file' | 'folder' = 'folder', initialDir?: string): Promise<FilePickerResult> =>
+  apiPost('openFilePicker', { mode, initialDir })

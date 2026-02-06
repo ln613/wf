@@ -1,5 +1,5 @@
 import { getLatestEmailWithAttachment, sendEmail } from './email.js'
-import { runWorkflow as comfyRunWorkflow } from './comfy.js'
+import { runWorkflow as comfyRunWorkflow, comfyFsvProcess } from './comfy.js'
 import {
   wait,
   navigate,
@@ -351,6 +351,38 @@ export const tasks = {
       ],
       outputs: ['fileName'],
       handler: comfyRunWorkflow,
+    },
+    comfyFsvProcess: {
+      name: 'Comfy FSV Process',
+      inputs: [
+        {
+          name: 'type',
+          type: 'radio',
+          label: 'Workflow Type',
+          required: false,
+          default: 'fsv',
+          options: [
+            { value: 'fsv', text: 'fsv' },
+            { value: 'fsvr', text: 'fsvr' },
+            { value: 'fsi', text: 'fsi' },
+          ],
+        },
+        { name: 'filePath', type: 'file', label: 'File or Folder Path', required: true },
+        {
+          name: 'count',
+          type: 'radio',
+          label: 'Face Count',
+          required: false,
+          default: '1',
+          options: [
+            { value: '1', text: '1' },
+            { value: '2', text: '2' },
+            { value: '3', text: '3' },
+          ],
+        },
+      ],
+      outputs: ['success', 'results', 'message'],
+      handler: comfyFsvProcess,
     },
   },
   media: {

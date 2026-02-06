@@ -1,6 +1,6 @@
 import { ComfyApi, Workflow } from 'comfyui-node'
-import { readFile } from 'fs/promises'
-import { resolve } from 'path'
+import { readFile, readdir, stat, copyFile } from 'fs/promises'
+import { resolve, join, basename } from 'path'
 
 let api
 
@@ -70,4 +70,105 @@ const extractOutputFileName = (result, outputKey) => {
     return result.files[0].filename
   }
   return null
+}
+
+const COMFY_INPUT_DIR = '\\\\nan-ai\\aic\\Software\\comfy\\ComfyUI\\input'
+
+/**
+ * Process files for Comfy FSV/FSVR/FSI workflow
+ * @param {Object} params - Input parameters
+ * @param {string} params.type - Workflow type: fsv, fsvr, fsi (default: fsv)
+ * @param {string} params.filePath - File or folder path (required)
+ * @param {string} params.count - Number of faces: 1, 2, 3 (default: 1)
+ * @returns {Promise<Object>} Result object with generated file names
+ */
+export const comfyFsvProcess = async ({ type = 'fsv', filePath, count = '1' }) => {
+  validateComfyFsvInput(filePath)
+
+  const files = await getFilesToProcess(filePath)
+  const results = []
+
+  for (const file of files) {
+    try {
+      const result = await processComfyFsvFile(file, type, count)
+      results.push({ file, ...result })
+    } catch (error) {
+      results.push({ file, success: false, error: error.message })
+    }
+  }
+
+  return {
+    success: results.every((r) => r.success),
+    results,
+    message: `Processed ${results.filter((r) => r.success).length}/${results.length} files`,
+  }
+}
+
+const validateComfyFsvInput = (filePath) => {
+  if (!filePath) {
+    throw new Error('File path is required')
+  }
+}
+
+const getFilesToProcess = async (filePath) => {
+  try {
+    const fileStat = await stat(filePath)
+
+    if (fileStat.isDirectory()) {
+      const files = await readdir(filePath)
+      return files.map((f) => join(filePath, f))
+    }
+
+    return [filePath]
+  } catch (error) {
+    throw new Error(`Failed to access path: ${error.message}`)
+  }
+}
+
+const processComfyFsvFile = async (file, type, count) => {
+  const fileName = basename(file)
+  await copyFileToComfyInput(file, fileName)
+
+  const faces = calculateFaces(count)
+  const workflowPath = getWorkflowPath(type)
+  const params = buildComfyFsvParams(type, fileName, faces)
+
+  const outputFileName = await runWorkflow({
+    workflowPath,
+    params,
+    outputKey: 'images:31',
+  })
+
+  return {
+    success: true,
+    fileName: outputFileName,
+    message: `Successfully processed ${fileName}`,
+  }
+}
+
+const copyFileToComfyInput = async (sourcePath, fileName) => {
+  const destPath = join(COMFY_INPUT_DIR, fileName)
+  await copyFile(sourcePath, destPath)
+}
+
+const calculateFaces = (count) => {
+  if (count === '2' || count === 2) return '0,1'
+  if (count === '3' || count === 3) return '0,1,2'
+  return '0'
+}
+
+const getWorkflowPath = (type) => {
+  return `./server/utils/comfy/${type}.json`
+}
+
+const buildComfyFsvParams = (type, fileName, faces) => {
+  if (type === 'fsvr') {
+    return [{ key: '45.inputs.video', value: `ComfyUI/input/${fileName}` }]
+  }
+
+  // fsv and fsi use same param structure
+  return [
+    { key: '47.inputs.video', value: fileName },
+    { key: '41.inputs.input_faces_index', value: faces },
+  ]
 }

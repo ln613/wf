@@ -77,15 +77,24 @@
 
 ### Input
 
-- file path
+- type (radio button): fsv, fsvr, fsi (default fsv)
+- file or folder path (file picker)
+- count (radio button): 1, 2, 3 (default 1)
 
 ### Tasks
 
-- comfy runWorkflow
-  - workflow path: /utils/comfy/fsv.json
-  - params:
-    - '47.inputs.video': file path
-  - output key: 'images:31'
+- if the path is a folder, then get all files in the folder, and do the following for each file sequentially
+  - copy the file to \\nan-ai\aic\Software\comfy\ComfyUI\input
+  - get file name from the file path, including extension
+  - faces = count == 2 ? '0,1' : count == 3 ? '0,1,2' : '0'
+  - comfy runWorkflow
+    - workflow path: /utils/comfy/{type}.json
+    - params (type = fsv):
+      - '47.inputs.video': file name
+      - '41.inputs.input_faces_index': faces
+    - params (type = fsvr):
+      - '45.inputs.video': 'ComfyUI/input/{file name}'
+    - output key: 'images:31'
 
 ### Output
 

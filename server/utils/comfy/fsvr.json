@@ -1,12 +1,9 @@
 {
   "31": {
     "inputs": {
-      "frame_rate": [
-        "46",
-        0
-      ],
+      "frame_rate": 24,
       "loop_count": 0,
-      "filename_prefix": "ff-",
+      "filename_prefix": "AnimateDiff",
       "format": "video/h264-mp4",
       "pix_fmt": "yuv420p",
       "crf": 19,
@@ -19,8 +16,12 @@
         0
       ],
       "audio": [
-        "47",
+        "45",
         2
+      ],
+      "meta_batch": [
+        "43",
+        0
       ]
     },
     "class_type": "VHS_VideoCombine",
@@ -41,7 +42,7 @@
   "41": {
     "inputs": {
       "input_faces_order": "left-right",
-      "input_faces_index": "0",
+      "input_faces_index": "0,1",
       "detect_gender_input": "no",
       "source_faces_order": "left-right",
       "source_faces_index": "0",
@@ -62,7 +63,7 @@
       "face_restore_visibility": 1,
       "codeformer_weight": 0.5,
       "input_image": [
-        "47",
+        "45",
         0
       ],
       "source_image": [
@@ -79,35 +80,37 @@
       "title": "ReActor 🌌 Fast Face Swap [OPTIONS]"
     }
   },
-  "46": {
+  "43": {
     "inputs": {
-      "video_info": [
-        "47",
-        3
-      ]
+      "frames_per_batch": 120,
+      "count": 9
     },
-    "class_type": "VHS_VideoInfo",
+    "class_type": "VHS_BatchManager",
     "_meta": {
-      "title": "Video Info 🎥🅥🅗🅢"
+      "title": "Meta Batch Manager 🎥🅥🅗🅢"
     }
   },
-  "47": {
+  "45": {
     "inputs": {
-      "video": "IMG_3889_edit.MP4",
-      "force_rate": 0,
+      "video": "ComfyUI/input/SLR_EmilyBloom_Bikini_Oil_original_15471_LR_180.mp4",
+      "force_rate": 24,
       "custom_width": 0,
       "custom_height": 0,
       "frame_load_cap": 0,
       "skip_first_frames": 0,
       "select_every_nth": 1,
-      "format": "AnimateDiff"
+      "format": "AnimateDiff",
+      "meta_batch": [
+        "43",
+        0
+      ]
     },
-    "class_type": "VHS_LoadVideo",
+    "class_type": "VHS_LoadVideoPath",
     "_meta": {
-      "title": "Load Video (Upload) 🎥🅥🅗🅢"
+      "title": "Load Video (Path) 🎥🅥🅗🅢"
     }
   },
-  "48": {
+  "46": {
     "inputs": {
       "options": "Intermediate and Utility",
       "filenames": [
