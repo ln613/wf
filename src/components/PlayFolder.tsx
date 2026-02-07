@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getFolderContents, type FolderContents, type FolderItem } from '../utils/api'
+import { getFolderContents, getApiHost, type FolderContents, type FolderItem } from '../utils/api'
 import './PlayFolder.css'
 
 const DEFAULT_PATH = 'C:\\T'
@@ -84,7 +84,11 @@ export const PlayFolder = () => {
   }
 
   const getVideoUrl = (path: string) => {
-    return `http://localhost:3001/api?type=videoStream&path=${encodeURIComponent(path)}`
+    return `${getApiHost()}/api?type=videoStream&path=${encodeURIComponent(path)}`
+  }
+
+  const getThumbnailUrl = (path: string) => {
+    return `${getApiHost()}/api?type=thumbnailStream&path=${encodeURIComponent(path)}`
   }
 
   const renderHeader = () => (
@@ -128,7 +132,18 @@ export const PlayFolder = () => {
             />
           ) : (
             <div className="video-thumbnail">
-              <div className="video-icon">🎬</div>
+              <img
+                src={getThumbnailUrl(item.path)}
+                alt={item.name}
+                className="thumbnail-image"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement
+                  target.style.display = 'none'
+                  const fallback = target.nextElementSibling as HTMLElement
+                  if (fallback) fallback.style.display = 'flex'
+                }}
+              />
+              <div className="video-icon fallback-icon" style={{ display: 'none' }}>🎬</div>
             </div>
           )}
           <div className="video-item-name">{item.name}</div>

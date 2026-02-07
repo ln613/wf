@@ -37,6 +37,11 @@ app.get('/api', async (req, res) => {
       return handleVideoStream(req, res, restParams)
     }
 
+    // Handle thumbnail streaming separately
+    if (type === 'thumbnailStream') {
+      return handleThumbnailStream(req, res, restParams)
+    }
+
     const error = validateRequest('get', type)
     if (error) {
       return res.status(400).json({ error })
@@ -90,6 +95,34 @@ const handleVideoStream = (req, res, params) => {
   } catch (error) {
     console.error('Video stream error:', error)
     res.status(404).json({ error: 'Video not found' })
+  }
+}
+
+const handleThumbnailStream = async (req, res, params) => {
+  const videoPath = params.path
+  if (!videoPath) {
+    return res.status(400).json({ error: 'Video path is required' })
+  }
+
+  try {
+    await connectDB()
+    const { thumbnail } = await apiHandlers.get.videoThumbnail({ path: videoPath })
+    
+    if (!thumbnail) {
+      return res.status(404).json({ error: 'Thumbnail not found' })
+    }
+
+    const stat = statSync(thumbnail)
+    const head = {
+      'Content-Length': stat.size,
+      'Content-Type': 'image/jpeg',
+      'Cache-Control': 'public, max-age=86400',
+    }
+    res.writeHead(200, head)
+    createReadStream(thumbnail).pipe(res)
+  } catch (error) {
+    console.error('Thumbnail stream error:', error)
+    res.status(404).json({ error: 'Thumbnail not found' })
   }
 }
 

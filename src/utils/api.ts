@@ -1,5 +1,5 @@
-const getApiHost = () => {
-  return import.meta.env.DEV ? 'http://localhost:3001' : ''
+export const getApiHost = () => {
+  return `${window.location.protocol}//${window.location.hostname}:3001`
 }
 
 const buildUrl = (type: string, params?: Record<string, string>) => {
