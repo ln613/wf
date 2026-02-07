@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { getWorkflows, getTasks } from '../utils/api'
-import type { WorkflowCategory, TaskCategory, SelectedItem, TabType } from '../types/workflow'
+import { useNavigate } from 'react-router-dom'
+import { getWorkflows, getTasks, getUIPages } from '../utils/api'
+import type { WorkflowCategory, TaskCategory, SelectedItem, TabType, UIPage } from '../types/workflow'
 import './HomePage.css'
 
 interface HomePageProps {
@@ -8,10 +9,12 @@ interface HomePageProps {
 }
 
 export const HomePage = ({ onSelectItem }: HomePageProps) => {
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<TabType>('local')
   const [localWorkflows, setLocalWorkflows] = useState<WorkflowCategory[]>([])
   const [testWorkflows, setTestWorkflows] = useState<WorkflowCategory[]>([])
   const [tasks, setTasks] = useState<TaskCategory[]>([])
+  const [uiPages, setUIPages] = useState<UIPage[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -23,12 +26,17 @@ export const HomePage = ({ onSelectItem }: HomePageProps) => {
     try {
       setLoading(true)
       setError(null)
-      const [workflowData, taskData] = await Promise.all([getWorkflows(), getTasks()])
+      const [workflowData, taskData, uiData] = await Promise.all([
+        getWorkflows(),
+        getTasks(),
+        getUIPages(),
+      ])
       const local = workflowData.filter((c: WorkflowCategory) => c.category === 'local')
       const test = workflowData.filter((c: WorkflowCategory) => c.category === 'test')
       setLocalWorkflows(local)
       setTestWorkflows(test)
       setTasks(taskData)
+      setUIPages(uiData)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load data')
     } finally {
@@ -54,6 +62,10 @@ export const HomePage = ({ onSelectItem }: HomePageProps) => {
     })
   }
 
+  const handleUIPageSelect = (uiPage: UIPage) => {
+    navigate(uiPage.url)
+  }
+
   const renderTabs = () => (
     <div className="tabs">
       <button
@@ -61,6 +73,12 @@ export const HomePage = ({ onSelectItem }: HomePageProps) => {
         onClick={() => setActiveTab('local')}
       >
         Local Workflows
+      </button>
+      <button
+        className={`tab ${activeTab === 'ui' ? 'active' : ''}`}
+        onClick={() => setActiveTab('ui')}
+      >
+        UI
       </button>
       <button
         className={`tab ${activeTab === 'test' ? 'active' : ''}`}
@@ -110,6 +128,19 @@ export const HomePage = ({ onSelectItem }: HomePageProps) => {
     </div>
   )
 
+  const renderUIPages = () => (
+    <div className="list-container">
+      <ul className="item-list">
+        {uiPages.map((uiPage) => (
+          <li key={uiPage.url} className="item" onClick={() => handleUIPageSelect(uiPage)}>
+            <span className="item-name">{uiPage.name}</span>
+            <span className="item-info">→</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+
   if (loading) return <div className="loading">Loading...</div>
   if (error) return <div className="error">{error}</div>
 
@@ -117,6 +148,8 @@ export const HomePage = ({ onSelectItem }: HomePageProps) => {
     switch (activeTab) {
       case 'local':
         return renderWorkflows(localWorkflows)
+      case 'ui':
+        return renderUIPages()
       case 'test':
         return renderWorkflows(testWorkflows)
       case 'task':

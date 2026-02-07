@@ -1,6 +1,7 @@
 import dotenv from 'dotenv'
 import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
+import { createReadStream, statSync } from 'fs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -31,6 +32,11 @@ app.get('/api', async (req, res) => {
     const { type, ...restParams } = req.query
     console.log(`[API] GET request received - type: ${type}`)
 
+    // Handle video streaming separately
+    if (type === 'videoStream') {
+      return handleVideoStream(req, res, restParams)
+    }
+
     const error = validateRequest('get', type)
     if (error) {
       return res.status(400).json({ error })
@@ -47,6 +53,45 @@ app.get('/api', async (req, res) => {
     res.status(500).json({ error: error.message })
   }
 })
+
+const handleVideoStream = (req, res, params) => {
+  const videoPath = params.path
+  if (!videoPath) {
+    return res.status(400).json({ error: 'Video path is required' })
+  }
+
+  try {
+    const stat = statSync(videoPath)
+    const fileSize = stat.size
+    const range = req.headers.range
+
+    if (range) {
+      const parts = range.replace(/bytes=/, '').split('-')
+      const start = parseInt(parts[0], 10)
+      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1
+      const chunksize = end - start + 1
+      const file = createReadStream(videoPath, { start, end })
+      const head = {
+        'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': chunksize,
+        'Content-Type': 'video/mp4',
+      }
+      res.writeHead(206, head)
+      file.pipe(res)
+    } else {
+      const head = {
+        'Content-Length': fileSize,
+        'Content-Type': 'video/mp4',
+      }
+      res.writeHead(200, head)
+      createReadStream(videoPath).pipe(res)
+    }
+  } catch (error) {
+    console.error('Video stream error:', error)
+    res.status(404).json({ error: 'Video not found' })
+  }
+}
 
 const getPostLogMessage = (type, body) => {
   const baseMsg = `[API] POST request received - type: ${type}`

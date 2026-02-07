@@ -41,12 +41,17 @@ Create an API for triggering the workflow
 
 ### Home Page
 
-- Display 3 tabs - Local Workflows, Test Workflows and Tasks
-- Upon selecting the tab, show the list of all workflows/tasks. For tasks, group them by categories (each category corresponds to a markdown file)
+- Display 4 tabs - Local Workflows, UI, Test Workflows and Tasks
+- Upon selecting the tab, show the list of all workflows/tasks/UIs. For tasks, group them by categories (each category corresponds to a markdown file)
 - When selecting a workflow/task, go to the call page
+- When selecting a UI, navigate to the corresponding url
 
 ### Call page
 
 - Show the name of the selected workflow/task
 - Based on the inputs of the selected workflow/task, show the corresponding input elements
 - Show the Call button, upon click, call the workflow API and display the result
+
+### UI page
+
+Each markdown file under UI folder is a page within the frontend react app, with url corresponding to the file name
