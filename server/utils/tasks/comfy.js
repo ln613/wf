@@ -1,6 +1,7 @@
 import { ComfyApi, Workflow } from 'comfyui-node'
-import { readFile, readdir, stat, copyFile, rename, unlink } from 'fs/promises'
+import { readFile, readdir, stat, copyFile, rename, unlink, mkdir } from 'fs/promises'
 import { resolve, join, basename, dirname } from 'path'
+import { pinyin } from 'pinyin-pro'
 
 export const runWorkflow = async ({ workflowPath, params, outputKey }) => {
   validateRunWorkflowInput(workflowPath)
@@ -85,6 +86,7 @@ const extractOutputFileName = (result, outputKey) => {
 
 const COMFY_INPUT_DIR = '\\\\nan-ai\\aic\\Software\\comfy\\ComfyUI\\input'
 const COMFY_OUTPUT_DIR = '\\\\nan-ai\\aic\\Software\\comfy\\ComfyUI\\output'
+const OUTPUT_BASE_DIR = 'C:\\T\\fg\\v'
 
 /**
  * Process files for Comfy FSV/FSVR/FSI workflow
@@ -102,7 +104,7 @@ export const comfyFsvProcess = async ({ type = 'fsv', filePath, count = '1' }) =
 
   for (const file of files) {
     try {
-      const result = await processComfyFsvFile(file, type, count)
+      const result = await processComfyFsvFile(file, type, count, folderName)
       results.push({ file, ...result })
     } catch (error) {
       results.push({ file, success: false, error: error.message })
@@ -144,7 +146,7 @@ const getFilesToProcess = async (filePath) => {
   }
 }
 
-const processComfyFsvFile = async (file, type, count) => {
+const processComfyFsvFile = async (file, type, count, folderName) => {
   const fileName = basename(file)
   console.log(`Processing file: ${fileName}`)
   
@@ -164,12 +166,12 @@ const processComfyFsvFile = async (file, type, count) => {
   console.log(`Workflow returned output file: ${outputFileName}`)
 
   console.log('Starting post-processing...')
-  await postProcessWorkflowResult(outputFileName, type, fileName, copiedFilePath)
+  const renamedFileName = await postProcessWorkflowResult(outputFileName, type, fileName, copiedFilePath, folderName)
   console.log('Post-processing completed')
 
   return {
     success: true,
-    fileName: `${type}-${fileName}`,
+    fileName: renamedFileName || `${type}-${fileName}`,
     message: `Successfully processed ${fileName}`,
   }
 }
@@ -180,29 +182,72 @@ const copyFileToComfyInput = async (sourcePath, fileName) => {
   return destPath
 }
 
-const postProcessWorkflowResult = async (outputFileName, type, originalFileName, copiedFilePath) => {
-  console.log(`Post-processing: output=${outputFileName}, type=${type}, original=${originalFileName}`)
-  await renameGeneratedFile(outputFileName, type, originalFileName)
+const postProcessWorkflowResult = async (outputFileName, type, originalFileName, copiedFilePath, folderName) => {
+  console.log(`Post-processing: output=${outputFileName}, type=${type}, original=${originalFileName}, folder=${folderName}`)
+  const renamedFileName = await renameAndMoveGeneratedFile(outputFileName, type, originalFileName, folderName)
   await deleteCopiedInputFile(copiedFilePath)
+  return renamedFileName
 }
 
-const renameGeneratedFile = async (outputFileName, type, originalFileName) => {
+const convertChineseToFolderName = (name) => {
+  if (!name) return null
+  
+  // Check if name contains Chinese characters
+  const hasChinese = /[\u4e00-\u9fa5]/.test(name)
+  if (!hasChinese) return name
+  
+  // Convert Chinese to pinyin
+  const pinyinResult = pinyin(name, { toneType: 'none', type: 'array' })
+  return pinyinResult.join('')
+}
+
+const getOutputDestinationDir = (folderName) => {
+  if (!folderName) return OUTPUT_BASE_DIR
+  
+  const convertedFolderName = convertChineseToFolderName(folderName)
+  return join(OUTPUT_BASE_DIR, convertedFolderName)
+}
+
+const ensureDirectoryExists = async (dirPath) => {
+  try {
+    await mkdir(dirPath, { recursive: true })
+  } catch (error) {
+    if (error.code !== 'EEXIST') {
+      throw error
+    }
+  }
+}
+
+const moveFileCrossDevice = async (sourcePath, destPath) => {
+  // Use copy + delete for cross-device moves (network share to local drive)
+  await copyFile(sourcePath, destPath)
+  await unlink(sourcePath)
+}
+
+const renameAndMoveGeneratedFile = async (outputFileName, type, originalFileName, folderName) => {
   if (!outputFileName) {
-    console.log('No output file name, skipping rename')
-    return
+    console.log('No output file name, skipping rename and move')
+    return null
   }
 
   const outputDir = COMFY_OUTPUT_DIR
   const oldPath = join(outputDir, outputFileName)
   const newFileName = `${type}-${originalFileName}`
-  const newPath = join(outputDir, newFileName)
+  
+  // Get destination directory
+  const destDir = getOutputDestinationDir(folderName)
+  await ensureDirectoryExists(destDir)
+  
+  const destPath = join(destDir, newFileName)
 
-  console.log(`Renaming: ${oldPath} -> ${newPath}`)
+  console.log(`Moving and renaming: ${oldPath} -> ${destPath}`)
   try {
-    await rename(oldPath, newPath)
-    console.log('Rename successful')
+    await moveFileCrossDevice(oldPath, destPath)
+    console.log('Move and rename successful')
+    return newFileName
   } catch (error) {
-    console.error(`Failed to rename output file: ${error.message}`)
+    console.error(`Failed to move and rename output file: ${error.message}`)
+    return null
   }
 }
 

@@ -182,6 +182,7 @@ export const CallPage = ({ item, onBack }: CallPageProps) => {
             onChange={(path) => handleInputChange(input.name, path)}
             label={input.label}
             required={input.required}
+            defaultFolder={input.defaultFolder}
           />
         </div>
       )

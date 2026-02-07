@@ -7,15 +7,16 @@ interface FilePickerProps {
   onChange: (path: string) => void
   label: string
   required?: boolean
+  defaultFolder?: string
 }
 
-export const FilePicker = ({ value, onChange, label, required }: FilePickerProps) => {
+export const FilePicker = ({ value, onChange, label, required, defaultFolder }: FilePickerProps) => {
   const [loading, setLoading] = useState<'file' | 'folder' | null>(null)
 
   const handleBrowseFolder = async () => {
     setLoading('folder')
     try {
-      const result = await openFilePicker('folder')
+      const result = await openFilePicker('folder', defaultFolder)
       if (!result.cancelled && result.path) {
         onChange(result.path)
       }
@@ -29,7 +30,7 @@ export const FilePicker = ({ value, onChange, label, required }: FilePickerProps
   const handleBrowseFile = async () => {
     setLoading('file')
     try {
-      const result = await openFilePicker('file')
+      const result = await openFilePicker('file', defaultFolder)
       if (!result.cancelled && result.path) {
         onChange(result.path)
       }

@@ -78,12 +78,12 @@
 ### Input
 
 - type (radio button): fsv, fsvr, fsi (default fsv)
-- file or folder path (file picker)
+- scope: file or folder path (file picker, default folder is C:\T\ks)
 - count (radio button): 1, 2, 3 (default 1)
 
 ### Tasks
 
-- if the path is a folder:
+- if scope is folder:
   - get all files in the folder
   - get folder name from the folder path
 - do the following for each file sequentially
@@ -100,6 +100,7 @@
     - output key: 'images:31'
   - when the workflow is finished:
     - rename the generated file to '{type}-{file name}'
+    - move the generated file to C:\T\fg\v or C:\T\fg\v\{folder name} for folder scope (when the folder name is chinese, convert it to pinying)
     - delete the file which was copied to the input folder ealier
 
 ### Output

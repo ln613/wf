@@ -11,6 +11,7 @@ export interface TaskInput {
   optionsApi?: string
   default?: string
   options?: RadioOption[]
+  defaultFolder?: string
 }
 
 export interface TaskDefinition {

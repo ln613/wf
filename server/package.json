@@ -23,6 +23,7 @@
     "mongodb": "^6.3.0",
     "node-fetch": "^3.3.2",
     "nodemailer": "^7.0.11",
+    "pinyin-pro": "^3.28.0",
     "puppeteer-core": "^21.0.0",
     "xlsx": "^0.18.5"
   }

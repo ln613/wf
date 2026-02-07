@@ -190,6 +190,7 @@ export const localWorkflows = {
         type: 'file',
         label: 'File or Folder Path',
         required: true,
+        defaultFolder: 'C:\\T\\ks',
       },
       {
         name: 'count',
