@@ -1,24 +1,35 @@
 import { ComfyApi, Workflow } from 'comfyui-node'
-import { readFile, readdir, stat, copyFile } from 'fs/promises'
-import { resolve, join, basename } from 'path'
-
-let api
+import { readFile, readdir, stat, copyFile, rename, unlink } from 'fs/promises'
+import { resolve, join, basename, dirname } from 'path'
 
 export const runWorkflow = async ({ workflowPath, params, outputKey }) => {
   validateRunWorkflowInput(workflowPath)
 
-  if (!api) {
-    api = await createComfyApi()
-  }
+  // Create fresh API connection for each workflow to avoid websocket issues
+  const api = await createComfyApi()
 
   const workflowJson = await loadWorkflowJson(workflowPath)
   const wf = createWorkflow(workflowJson, params, outputKey)
 
+  console.log(`Starting workflow: ${workflowPath}`)
   const job = await api.run(wf, { autoDestroy: true })
   logJobProgress(job)
 
-  const result = await job.done()
-  return extractOutputFileName(result, outputKey)
+  try {
+    const result = await job.done()
+    console.log('Workflow completed, result:', JSON.stringify(result, null, 2))
+    return extractOutputFileName(result, outputKey)
+  } catch (error) {
+    console.error('Workflow job error:', error)
+    throw error
+  } finally {
+    // Close the API connection after job completes
+    try {
+      api.close?.()
+    } catch (e) {
+      // Ignore close errors
+    }
+  }
 }
 
 const validateRunWorkflowInput = (workflowPath) => {
@@ -73,6 +84,7 @@ const extractOutputFileName = (result, outputKey) => {
 }
 
 const COMFY_INPUT_DIR = '\\\\nan-ai\\aic\\Software\\comfy\\ComfyUI\\input'
+const COMFY_OUTPUT_DIR = '\\\\nan-ai\\aic\\Software\\comfy\\ComfyUI\\output'
 
 /**
  * Process files for Comfy FSV/FSVR/FSI workflow
@@ -85,7 +97,7 @@ const COMFY_INPUT_DIR = '\\\\nan-ai\\aic\\Software\\comfy\\ComfyUI\\input'
 export const comfyFsvProcess = async ({ type = 'fsv', filePath, count = '1' }) => {
   validateComfyFsvInput(filePath)
 
-  const files = await getFilesToProcess(filePath)
+  const { files, folderName } = await getFilesToProcess(filePath)
   const results = []
 
   for (const file of files) {
@@ -116,10 +128,17 @@ const getFilesToProcess = async (filePath) => {
 
     if (fileStat.isDirectory()) {
       const files = await readdir(filePath)
-      return files.map((f) => join(filePath, f))
+      const folderName = basename(filePath)
+      return {
+        files: files.map((f) => join(filePath, f)),
+        folderName,
+      }
     }
 
-    return [filePath]
+    return {
+      files: [filePath],
+      folderName: null,
+    }
   } catch (error) {
     throw new Error(`Failed to access path: ${error.message}`)
   }
@@ -127,21 +146,30 @@ const getFilesToProcess = async (filePath) => {
 
 const processComfyFsvFile = async (file, type, count) => {
   const fileName = basename(file)
-  await copyFileToComfyInput(file, fileName)
+  console.log(`Processing file: ${fileName}`)
+  
+  const copiedFilePath = await copyFileToComfyInput(file, fileName)
+  console.log(`Copied file to: ${copiedFilePath}`)
 
   const faces = calculateFaces(count)
   const workflowPath = getWorkflowPath(type)
   const params = buildComfyFsvParams(type, fileName, faces)
 
+  console.log(`Running workflow with params:`, JSON.stringify(params))
   const outputFileName = await runWorkflow({
     workflowPath,
     params,
     outputKey: 'images:31',
   })
+  console.log(`Workflow returned output file: ${outputFileName}`)
+
+  console.log('Starting post-processing...')
+  await postProcessWorkflowResult(outputFileName, type, fileName, copiedFilePath)
+  console.log('Post-processing completed')
 
   return {
     success: true,
-    fileName: outputFileName,
+    fileName: `${type}-${fileName}`,
     message: `Successfully processed ${fileName}`,
   }
 }
@@ -149,6 +177,43 @@ const processComfyFsvFile = async (file, type, count) => {
 const copyFileToComfyInput = async (sourcePath, fileName) => {
   const destPath = join(COMFY_INPUT_DIR, fileName)
   await copyFile(sourcePath, destPath)
+  return destPath
+}
+
+const postProcessWorkflowResult = async (outputFileName, type, originalFileName, copiedFilePath) => {
+  console.log(`Post-processing: output=${outputFileName}, type=${type}, original=${originalFileName}`)
+  await renameGeneratedFile(outputFileName, type, originalFileName)
+  await deleteCopiedInputFile(copiedFilePath)
+}
+
+const renameGeneratedFile = async (outputFileName, type, originalFileName) => {
+  if (!outputFileName) {
+    console.log('No output file name, skipping rename')
+    return
+  }
+
+  const outputDir = COMFY_OUTPUT_DIR
+  const oldPath = join(outputDir, outputFileName)
+  const newFileName = `${type}-${originalFileName}`
+  const newPath = join(outputDir, newFileName)
+
+  console.log(`Renaming: ${oldPath} -> ${newPath}`)
+  try {
+    await rename(oldPath, newPath)
+    console.log('Rename successful')
+  } catch (error) {
+    console.error(`Failed to rename output file: ${error.message}`)
+  }
+}
+
+const deleteCopiedInputFile = async (copiedFilePath) => {
+  console.log(`Deleting copied file: ${copiedFilePath}`)
+  try {
+    await unlink(copiedFilePath)
+    console.log('Delete successful')
+  } catch (error) {
+    console.error(`Failed to delete copied input file: ${error.message}`)
+  }
 }
 
 const calculateFaces = (count) => {

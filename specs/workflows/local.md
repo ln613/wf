@@ -83,7 +83,10 @@
 
 ### Tasks
 
-- if the path is a folder, then get all files in the folder, and do the following for each file sequentially
+- if the path is a folder:
+  - get all files in the folder
+  - get folder name from the folder path
+- do the following for each file sequentially
   - copy the file to \\nan-ai\aic\Software\comfy\ComfyUI\input
   - get file name from the file path, including extension
   - faces = count == 2 ? '0,1' : count == 3 ? '0,1,2' : '0'
@@ -95,6 +98,9 @@
     - params (type = fsvr):
       - '45.inputs.video': 'ComfyUI/input/{file name}'
     - output key: 'images:31'
+  - when the workflow is finished:
+    - rename the generated file to '{type}-{file name}'
+    - delete the file which was copied to the input folder ealier
 
 ### Output
 
