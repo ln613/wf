@@ -1,8 +1,12 @@
 import { backgroundEvents, startBackgroundTask } from '../background/index.js'
 import { executeWorkflow, workflows } from './index.js'
+import { getOne, save, remove } from '../db.js'
 
 // Store registered triggers
 const registeredTriggers = new Map()
+
+// Collection name for pending composite triggers
+const PENDING_TRIGGERS_COLLECTION = 'pendingTriggers'
 
 /**
  * Convert workflow key to environment variable name
@@ -58,25 +62,27 @@ const registerWorkflowTrigger = (workflowKey, workflow) => {
 
   validateEventTrigger(eventTrigger, workflowKey)
 
-  const { event, condition, inputMapping } = eventTrigger
+  const { event, condition, compositeCondition, inputMapping } = eventTrigger
 
   // Start the background task if needed, passing workflowKey for identification
   startBackgroundTaskForEvent(event, workflowKey)
-  
-  // Create the event handler
-  const handler = createEventHandler(workflowKey, workflow, condition, inputMapping)
-  
+
+  // Create the event handler - handle composite or simple conditions
+  const handler = compositeCondition
+    ? createCompositeEventHandler(workflowKey, workflow, compositeCondition, inputMapping)
+    : createEventHandler(workflowKey, workflow, condition, inputMapping)
+
   // Register the event listener
   const eventName = getEventName(event)
   backgroundEvents.on(eventName, handler)
-  
+
   registeredTriggers.set(workflowKey, {
     eventName,
     handler,
     event,
-    condition,
+    condition: condition || compositeCondition,
   })
-  
+
   console.log(`[Triggers] Registered trigger for workflow '${workflow.name}' on event '${eventName}'`)
 }
 
@@ -165,6 +171,241 @@ const createEventHandler = (workflowKey, workflow, condition, inputMapping) => {
     } catch (error) {
       console.error(`[Triggers] Workflow '${workflow.name}' failed:`, error.message)
     }
+  }
+}
+
+/**
+ * Create an event handler for composite conditions (multiple conditions that must all be met)
+ * @param {string} workflowKey - Workflow key
+ * @param {Object} workflow - Workflow definition
+ * @param {Object} compositeCondition - Composite condition configuration
+ * @param {Object} inputMapping - Input mapping from event data to workflow inputs
+ * @returns {Function} Event handler
+ */
+const createCompositeEventHandler = (workflowKey, workflow, compositeCondition, inputMapping) => {
+  return async (eventData) => {
+    console.log(`[Triggers] Event received for composite workflow '${workflow.name}'`)
+
+    // Check if this event is for this workflow (for file watchers)
+    if (eventData.workflowId && eventData.workflowId !== workflowKey) {
+      return
+    }
+
+    const { type, matchKey, conditions } = compositeCondition
+
+    // Find which condition this event matches
+    const matchedCondition = findMatchingCondition(conditions, eventData)
+
+    if (!matchedCondition) {
+      console.log(`[Triggers] No condition matched for workflow '${workflow.name}', skipping`)
+      return
+    }
+
+    console.log(`[Triggers] Condition '${matchedCondition.id}' matched for workflow '${workflow.name}'`)
+
+    // Extract the match key value from the event data
+    const matchKeyValue = extractMatchKeyValue(matchedCondition, eventData)
+
+    if (!matchKeyValue) {
+      console.log(`[Triggers] Could not extract match key '${matchKey}' from event data, skipping`)
+      return
+    }
+
+    console.log(`[Triggers] Extracted ${matchKey}: ${matchKeyValue}`)
+
+    // Check if there's a pending trigger with the same match key
+    const pendingTrigger = await getPendingTrigger(workflowKey, matchKey, matchKeyValue)
+
+    if (pendingTrigger) {
+      // Check if all conditions are now met
+      const allConditionIds = conditions.map((c) => c.id)
+      const triggeredIds = [...pendingTrigger.triggeredConditions, matchedCondition.id]
+      const uniqueTriggeredIds = [...new Set(triggeredIds)]
+
+      const allMet =
+        type === 'all'
+          ? allConditionIds.every((id) => uniqueTriggeredIds.includes(id))
+          : uniqueTriggeredIds.length > 0
+
+      if (allMet) {
+        console.log(`[Triggers] All conditions met for workflow '${workflow.name}', executing...`)
+
+        // Remove the pending trigger
+        await removePendingTrigger(workflowKey, matchKey, matchKeyValue)
+
+        // Combine event data from all conditions
+        const combinedEventData = {
+          ...pendingTrigger.eventData,
+          [matchedCondition.id]: eventData,
+        }
+
+        // Map combined event data to workflow inputs
+        const workflowInputs = mapEventDataToInputs(combinedEventData, inputMapping)
+        workflowInputs._eventData = combinedEventData
+
+        console.log(`[Triggers] Executing workflow '${workflow.name}' with inputs:`, workflowInputs)
+
+        try {
+          const result = await executeWorkflow(workflowKey, workflowInputs, { event: combinedEventData })
+          console.log(`[Triggers] Workflow '${workflow.name}' completed successfully`)
+          return result
+        } catch (error) {
+          console.error(`[Triggers] Workflow '${workflow.name}' failed:`, error.message)
+        }
+      } else {
+        // Update the pending trigger with this new condition
+        await updatePendingTrigger(workflowKey, matchKey, matchKeyValue, matchedCondition.id, eventData)
+        console.log(`[Triggers] Updated pending trigger for workflow '${workflow.name}', waiting for other conditions`)
+      }
+    } else {
+      // Save this as a pending trigger
+      await savePendingTrigger(workflowKey, matchKey, matchKeyValue, matchedCondition.id, eventData)
+      console.log(`[Triggers] Saved pending trigger for workflow '${workflow.name}', waiting for other conditions`)
+    }
+  }
+}
+
+/**
+ * Find which condition matches the event data
+ * @param {Array} conditions - Array of condition configurations
+ * @param {Object} eventData - Event data
+ * @returns {Object|null} Matched condition or null
+ */
+const findMatchingCondition = (conditions, eventData) => {
+  for (const condition of conditions) {
+    if (checkCondition(condition, eventData)) {
+      return condition
+    }
+  }
+  return null
+}
+
+/**
+ * Extract the match key value from event data based on condition configuration
+ * @param {Object} condition - Condition that matched
+ * @param {Object} eventData - Event data
+ * @returns {string|null} Extracted match key value or null
+ */
+const extractMatchKeyValue = (condition, eventData) => {
+  if (!condition.extractLabReportId) {
+    return null
+  }
+
+  const { from, pattern, filter, property } = condition.extractLabReportId
+
+  // Get the source value
+  let sourceValue = getValueByPath(eventData, from)
+
+  // Apply filter if specified (for arrays)
+  if (filter && Array.isArray(sourceValue)) {
+    sourceValue = sourceValue.find((item) => {
+      if (filter.extension) {
+        const filename = item.filename?.toLowerCase() || ''
+        return filename.endsWith(filter.extension.toLowerCase())
+      }
+      return true
+    })
+  }
+
+  // Get property if specified
+  if (property && sourceValue && typeof sourceValue === 'object') {
+    sourceValue = sourceValue[property]
+  }
+
+  // Apply regex pattern to extract value
+  if (pattern && typeof sourceValue === 'string') {
+    const regex = new RegExp(pattern)
+    const match = sourceValue.match(regex)
+    if (match && match[1]) {
+      return match[1]
+    }
+  }
+
+  return typeof sourceValue === 'string' ? sourceValue : null
+}
+
+/**
+ * Get a pending trigger from the database
+ * @param {string} workflowKey - Workflow key
+ * @param {string} matchKey - Match key name
+ * @param {string} matchKeyValue - Match key value
+ * @returns {Object|null} Pending trigger or null
+ */
+const getPendingTrigger = async (workflowKey, matchKey, matchKeyValue) => {
+  try {
+    return await getOne(PENDING_TRIGGERS_COLLECTION, {
+      workflowKey,
+      matchKey,
+      matchKeyValue,
+    })
+  } catch (error) {
+    console.error('[Triggers] Error getting pending trigger:', error.message)
+    return null
+  }
+}
+
+/**
+ * Save a new pending trigger to the database
+ * @param {string} workflowKey - Workflow key
+ * @param {string} matchKey - Match key name
+ * @param {string} matchKeyValue - Match key value
+ * @param {string} conditionId - ID of the triggered condition
+ * @param {Object} eventData - Event data
+ */
+const savePendingTrigger = async (workflowKey, matchKey, matchKeyValue, conditionId, eventData) => {
+  try {
+    await save(PENDING_TRIGGERS_COLLECTION, {
+      workflowKey,
+      matchKey,
+      matchKeyValue,
+      triggeredConditions: [conditionId],
+      eventData: {
+        [conditionId]: eventData,
+      },
+      createdAt: new Date(),
+    })
+  } catch (error) {
+    console.error('[Triggers] Error saving pending trigger:', error.message)
+  }
+}
+
+/**
+ * Update an existing pending trigger with a new condition
+ * @param {string} workflowKey - Workflow key
+ * @param {string} matchKey - Match key name
+ * @param {string} matchKeyValue - Match key value
+ * @param {string} conditionId - ID of the triggered condition
+ * @param {Object} eventData - Event data
+ */
+const updatePendingTrigger = async (workflowKey, matchKey, matchKeyValue, conditionId, eventData) => {
+  try {
+    const pending = await getPendingTrigger(workflowKey, matchKey, matchKeyValue)
+    if (pending) {
+      pending.triggeredConditions = [...new Set([...pending.triggeredConditions, conditionId])]
+      pending.eventData[conditionId] = eventData
+      pending.updatedAt = new Date()
+      await save(PENDING_TRIGGERS_COLLECTION, pending)
+    }
+  } catch (error) {
+    console.error('[Triggers] Error updating pending trigger:', error.message)
+  }
+}
+
+/**
+ * Remove a pending trigger from the database
+ * @param {string} workflowKey - Workflow key
+ * @param {string} matchKey - Match key name
+ * @param {string} matchKeyValue - Match key value
+ */
+const removePendingTrigger = async (workflowKey, matchKey, matchKeyValue) => {
+  try {
+    await remove(PENDING_TRIGGERS_COLLECTION, {
+      workflowKey,
+      matchKey,
+      matchKeyValue,
+    })
+  } catch (error) {
+    console.error('[Triggers] Error removing pending trigger:', error.message)
   }
 }
 

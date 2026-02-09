@@ -10,8 +10,14 @@
 
 #### Trigger Condition
 
+condition 1:
+
 - the subject is like "FW: CARO ... Work Order ..."
 - there are 2 attachments, 1 excel file and 1 pdf
+
+condition 2:
+
+- the subject is like "Lab Report Upload Successful (Lab: {lab name}, Lab Report ID: {lab report id})"
 
 #### WF Input
 
@@ -19,6 +25,7 @@
 
 ### Tasks
 
+- only continue when both conditions are triggered (work order matches lab report id). If one is triggered first, save the info to db. And everytime a condition is triggered, check the db to see if the other one is already triggered
 - PDF to Htmls
 - Parse All QC Htmls (as H):
   - in the html folder

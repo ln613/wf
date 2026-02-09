@@ -8,16 +8,45 @@ export const localWorkflows = {
         emailAccount: 'GMAIL_1',
         pollingInterval: 60,
       },
-      condition: {
-        subjectPattern: 'FW:\\s*CARO.*Work Order',
-        attachments: {
-          minCount: 2,
-          requiredTypes: ['excel', 'pdf'],
-        },
+      compositeCondition: {
+        type: 'all', // Require all conditions to be met
+        matchKey: 'labReportId', // Key to match conditions together
+        conditions: [
+          {
+            id: 'workOrder',
+            subjectPattern: 'FW:\\s*CARO.*Work Order',
+            attachments: {
+              minCount: 2,
+              requiredTypes: ['excel', 'pdf'],
+            },
+            extractLabReportId: {
+              from: 'email.attachments',
+              filter: { extension: '.pdf' },
+              property: 'filename',
+              // Extract lab report id from PDF filename (assuming format includes it)
+              pattern: '(\\d+)',
+            },
+            inputMapping: {
+              pdfPath: {
+                from: 'email.attachments',
+                filter: { extension: '.pdf' },
+                property: 'path',
+              },
+            },
+          },
+          {
+            id: 'labReportUpload',
+            subjectPattern: 'Lab Report Upload Successful \\(Lab: .+, Lab Report ID: (\\d+)\\)',
+            extractLabReportId: {
+              from: 'email.subject',
+              pattern: 'Lab Report ID: (\\d+)',
+            },
+          },
+        ],
       },
       inputMapping: {
         pdfPath: {
-          from: 'email.attachments',
+          from: 'workOrder.email.attachments',
           filter: { extension: '.pdf' },
           property: 'path',
         },
