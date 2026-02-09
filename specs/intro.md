@@ -39,6 +39,15 @@ Create an API for triggering the workflow
 
 ## Front End
 
+### Style
+
+- full width of the viewport
+- light theme
+- no root padding
+- list items:
+  - wrappable
+  - items in a row: will be defined in the format r(6/3/2), represent desktop/tablet/mobile. default is r(6/3/2)
+
 ### Home Page
 
 - Display 4 tabs - Local Workflows, UI, Test Workflows and Tasks

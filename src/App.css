@@ -1,12 +1,36 @@
 #root {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 2rem;
+  width: 100%;
 }
 
 .app {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
     Ubuntu, Cantarell, sans-serif;
+}
+
+/* Global list item styles - default r(6/3/2): desktop/tablet/mobile */
+.list-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.list-items > * {
+  flex: 0 0 calc((100% - 100px) / 6);
+  box-sizing: border-box;
+}
+
+/* Tablet: 3 items per row */
+@media (max-width: 1024px) {
+  .list-items > * {
+    flex: 0 0 calc((100% - 40px) / 3);
+  }
+}
+
+/* Mobile: 2 items per row */
+@media (max-width: 640px) {
+  .list-items > * {
+    flex: 0 0 calc((100% - 20px) / 2);
+  }
 }
 
 .todo-list {

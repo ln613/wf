@@ -9,10 +9,9 @@ Start with folder C:\T. If the folder contains subfolders, show the sub folder l
   - current folder name
 - sub folder list
   - show big folder icon, folder name below the icon
-  - wrappable list
 - video list
   - show thumbnail of videos
-  - wrappable list
+  - follow the video's aspect ratio
 
 ## Interactions
 
@@ -20,9 +19,10 @@ Start with folder C:\T. If the folder contains subfolders, show the sub folder l
 - on video hover: start playing the video as preview
 - on video click: play the video full screen (repeat forever)
 - when in full screen:
-  - show big left arrow on left and right arrow on right
-  - on left arrow click: play the previous video
-  - on right arrow click: play the next video
+  - show a video carousel where the middle one is playing
+  - the opacity and size of the ones on both sides gradually decrease
+  - wrap the middle one in <a>, and set the href = "http://192.168.1.64:6911/{the video path without 'C:\'}"
+  - on other videos click: set it as the middle one and start playing (move with animation)
   - show big X at top right, on click, exit full screen
 
 #### Event
