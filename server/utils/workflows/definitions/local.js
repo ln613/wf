@@ -233,6 +233,17 @@ export const localWorkflows = {
           { value: '3', text: '3' },
         ],
       },
+      {
+        name: 'order',
+        type: 'radio',
+        label: 'Face Order',
+        required: false,
+        default: 'large-small',
+        options: [
+          { value: 'large-small', text: 'large-small' },
+          { value: 'left-right', text: 'left-right' },
+        ],
+      },
     ],
     tasks: [
       {
@@ -241,6 +252,7 @@ export const localWorkflows = {
           type: '{{type}}',
           filePath: '{{filePath}}',
           count: '{{count}}',
+          order: '{{order}}',
         },
         outputAs: 'result',
       },

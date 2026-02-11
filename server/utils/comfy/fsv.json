@@ -40,7 +40,7 @@
   },
   "41": {
     "inputs": {
-      "input_faces_order": "left-right",
+      "input_faces_order": "large-small",
       "input_faces_index": "0",
       "detect_gender_input": "no",
       "source_faces_order": "left-right",

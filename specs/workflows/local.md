@@ -87,6 +87,7 @@ condition 2:
 - type (radio button): fsv, fsvr, fsi (default fsv)
 - scope: file or folder path (file picker, default folder is C:\T\ks)
 - count (radio button): 1, 2, 3 (default 1)
+- order (radio button): large-small, left-right (default large-small)
 
 ### Tasks
 
@@ -102,6 +103,7 @@ condition 2:
     - params (type = fsv):
       - '47.inputs.video': file name
       - '41.inputs.input_faces_index': faces
+      - '41.inputs.input_faces_order': order
     - params (type = fsvr):
       - '45.inputs.video': 'ComfyUI/input/{file name}'
     - output key: 'images:31'

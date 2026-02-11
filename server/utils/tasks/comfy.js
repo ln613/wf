@@ -94,9 +94,10 @@ const OUTPUT_BASE_DIR = 'C:\\T\\fg\\v'
  * @param {string} params.type - Workflow type: fsv, fsvr, fsi (default: fsv)
  * @param {string} params.filePath - File or folder path (required)
  * @param {string} params.count - Number of faces: 1, 2, 3 (default: 1)
+ * @param {string} params.order - Face order: large-small, left-right (default: large-small)
  * @returns {Promise<Object>} Result object with generated file names
  */
-export const comfyFsvProcess = async ({ type = 'fsv', filePath, count = '1' }) => {
+export const comfyFsvProcess = async ({ type = 'fsv', filePath, count = '1', order = 'large-small' }) => {
   validateComfyFsvInput(filePath)
 
   const { files, folderName } = await getFilesToProcess(filePath)
@@ -104,7 +105,7 @@ export const comfyFsvProcess = async ({ type = 'fsv', filePath, count = '1' }) =
 
   for (const file of files) {
     try {
-      const result = await processComfyFsvFile(file, type, count, folderName)
+      const result = await processComfyFsvFile(file, type, count, order, folderName)
       results.push({ file, ...result })
     } catch (error) {
       results.push({ file, success: false, error: error.message })
@@ -146,7 +147,7 @@ const getFilesToProcess = async (filePath) => {
   }
 }
 
-const processComfyFsvFile = async (file, type, count, folderName) => {
+const processComfyFsvFile = async (file, type, count, order, folderName) => {
   const fileName = basename(file)
   console.log(`Processing file: ${fileName}`)
   
@@ -155,7 +156,7 @@ const processComfyFsvFile = async (file, type, count, folderName) => {
 
   const faces = calculateFaces(count)
   const workflowPath = getWorkflowPath(type)
-  const params = buildComfyFsvParams(type, fileName, faces)
+  const params = buildComfyFsvParams(type, fileName, faces, order)
 
   console.log(`Running workflow with params:`, JSON.stringify(params))
   const outputFileName = await runWorkflow({
@@ -271,7 +272,7 @@ const getWorkflowPath = (type) => {
   return `./server/utils/comfy/${type}.json`
 }
 
-const buildComfyFsvParams = (type, fileName, faces) => {
+const buildComfyFsvParams = (type, fileName, faces, order) => {
   if (type === 'fsvr') {
     return [{ key: '45.inputs.video', value: `ComfyUI/input/${fileName}` }]
   }
@@ -280,5 +281,6 @@ const buildComfyFsvParams = (type, fileName, faces) => {
   return [
     { key: '47.inputs.video', value: fileName },
     { key: '41.inputs.input_faces_index', value: faces },
+    { key: '41.inputs.input_faces_order', value: order },
   ]
 }
