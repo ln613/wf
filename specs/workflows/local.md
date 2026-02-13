@@ -95,8 +95,11 @@ condition 2:
   - get all files in the folder
   - get folder name from the folder path
 - do the following for each file sequentially
-  - copy the file to \\nan-ai\aic\Software\comfy\ComfyUI\input
   - get file name from the file path, including extension
+  - target file name = '{type}-{file name}'
+  - target folder = C:\T\fg\v or C:\T\fg\v\{folder name} for folder scope (when the folder name is chinese, convert it to pinying)
+  - if the target file does not exist in the target folder, do the following:
+  - copy the file to \\nan-ai\aic\Software\comfy\ComfyUI\input
   - faces = count == 2 ? '0,1' : count == 3 ? '0,1,2' : '0'
   - comfy runWorkflow
     - workflow path: /utils/comfy/{type}.json
@@ -108,8 +111,8 @@ condition 2:
       - '45.inputs.video': 'ComfyUI/input/{file name}'
     - output key: 'images:31'
   - when the workflow is finished:
-    - rename the generated file to '{type}-{file name}'
-    - move the generated file to C:\T\fg\v or C:\T\fg\v\{folder name} for folder scope (when the folder name is chinese, convert it to pinying)
+    - rename the generated file to target file name
+    - move the generated file to target folder
     - delete the file which was copied to the input folder ealier
 
 ### Output

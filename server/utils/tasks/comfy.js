@@ -1,5 +1,5 @@
 import { ComfyApi, Workflow } from 'comfyui-node'
-import { readFile, readdir, stat, copyFile, rename, unlink, mkdir } from 'fs/promises'
+import { readFile, readdir, stat, copyFile, rename, unlink, mkdir, access } from 'fs/promises'
 import { resolve, join, basename, dirname } from 'path'
 import { pinyin } from 'pinyin-pro'
 
@@ -150,7 +150,24 @@ const getFilesToProcess = async (filePath) => {
 const processComfyFsvFile = async (file, type, count, order, folderName) => {
   const fileName = basename(file)
   console.log(`Processing file: ${fileName}`)
-  
+
+  // Calculate target file name and target folder BEFORE processing
+  const targetFileName = `${type}-${fileName}`
+  const targetFolder = getOutputDestinationDir(folderName)
+  const targetFilePath = join(targetFolder, targetFileName)
+
+  // Check if target file already exists - skip if it does
+  if (await fileExists(targetFilePath)) {
+    console.log(`Target file already exists, skipping: ${targetFilePath}`)
+    return {
+      success: true,
+      fileName: targetFileName,
+      message: `Skipped ${fileName} - target already exists`,
+      skipped: true,
+    }
+  }
+
+  // Target doesn't exist, proceed with processing
   const copiedFilePath = await copyFileToComfyInput(file, fileName)
   console.log(`Copied file to: ${copiedFilePath}`)
 
@@ -167,13 +184,22 @@ const processComfyFsvFile = async (file, type, count, order, folderName) => {
   console.log(`Workflow returned output file: ${outputFileName}`)
 
   console.log('Starting post-processing...')
-  const renamedFileName = await postProcessWorkflowResult(outputFileName, type, fileName, copiedFilePath, folderName)
+  const renamedFileName = await postProcessWorkflowResult(outputFileName, targetFileName, targetFolder, copiedFilePath)
   console.log('Post-processing completed')
 
   return {
     success: true,
-    fileName: renamedFileName || `${type}-${fileName}`,
+    fileName: renamedFileName || targetFileName,
     message: `Successfully processed ${fileName}`,
+  }
+}
+
+const fileExists = async (filePath) => {
+  try {
+    await access(filePath)
+    return true
+  } catch {
+    return false
   }
 }
 
@@ -183,9 +209,9 @@ const copyFileToComfyInput = async (sourcePath, fileName) => {
   return destPath
 }
 
-const postProcessWorkflowResult = async (outputFileName, type, originalFileName, copiedFilePath, folderName) => {
-  console.log(`Post-processing: output=${outputFileName}, type=${type}, original=${originalFileName}, folder=${folderName}`)
-  const renamedFileName = await renameAndMoveGeneratedFile(outputFileName, type, originalFileName, folderName)
+const postProcessWorkflowResult = async (outputFileName, targetFileName, targetFolder, copiedFilePath) => {
+  console.log(`Post-processing: output=${outputFileName}, targetFileName=${targetFileName}, targetFolder=${targetFolder}`)
+  const renamedFileName = await renameAndMoveGeneratedFile(outputFileName, targetFileName, targetFolder)
   await deleteCopiedInputFile(copiedFilePath)
   return renamedFileName
 }
@@ -225,7 +251,7 @@ const moveFileCrossDevice = async (sourcePath, destPath) => {
   await unlink(sourcePath)
 }
 
-const renameAndMoveGeneratedFile = async (outputFileName, type, originalFileName, folderName) => {
+const renameAndMoveGeneratedFile = async (outputFileName, targetFileName, targetFolder) => {
   if (!outputFileName) {
     console.log('No output file name, skipping rename and move')
     return null
@@ -233,19 +259,17 @@ const renameAndMoveGeneratedFile = async (outputFileName, type, originalFileName
 
   const outputDir = COMFY_OUTPUT_DIR
   const oldPath = join(outputDir, outputFileName)
-  const newFileName = `${type}-${originalFileName}`
-  
-  // Get destination directory
-  const destDir = getOutputDestinationDir(folderName)
-  await ensureDirectoryExists(destDir)
-  
-  const destPath = join(destDir, newFileName)
+
+  // Ensure destination directory exists
+  await ensureDirectoryExists(targetFolder)
+
+  const destPath = join(targetFolder, targetFileName)
 
   console.log(`Moving and renaming: ${oldPath} -> ${destPath}`)
   try {
     await moveFileCrossDevice(oldPath, destPath)
     console.log('Move and rename successful')
-    return newFileName
+    return targetFileName
   } catch (error) {
     console.error(`Failed to move and rename output file: ${error.message}`)
     return null
