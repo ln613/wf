@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { createSignal, onMount, Show } from 'solid-js'
+import { useNavigate } from '@solidjs/router'
 import {
   getFolderContents,
   getApiHost,
@@ -18,17 +18,17 @@ const convertPathToExternalUrl = (path: string) => {
 
 export const PlayFolder = () => {
   const navigate = useNavigate()
-  const [contents, setContents] = useState<FolderContents | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [currentVideoIndex, setCurrentVideoIndex] = useState<number>(-1)
-  const [isFullscreen, setIsFullscreen] = useState(false)
-  const [previewVideo, setPreviewVideo] = useState<string | null>(null)
-  const [carouselAnimating, setCarouselAnimating] = useState(false)
-  const previewVideoRef = useRef<HTMLVideoElement | null>(null)
-  const fullscreenVideoRef = useRef<HTMLVideoElement | null>(null)
+  const [contents, setContents] = createSignal<FolderContents | null>(null)
+  const [loading, setLoading] = createSignal(true)
+  const [error, setError] = createSignal<string | null>(null)
+  const [currentVideoIndex, setCurrentVideoIndex] = createSignal<number>(-1)
+  const [isFullscreen, setIsFullscreen] = createSignal(false)
+  const [previewVideo, setPreviewVideo] = createSignal<string | null>(null)
+  const [carouselAnimating, setCarouselAnimating] = createSignal(false)
+  let previewVideoRef: HTMLVideoElement | undefined
+  let fullscreenVideoRef: HTMLVideoElement | undefined
 
-  const loadFolder = useCallback(async (path: string) => {
+  const loadFolder = async (path: string) => {
     try {
       setLoading(true)
       setError(null)
@@ -39,15 +39,16 @@ export const PlayFolder = () => {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }
 
-  useEffect(() => {
+  onMount(() => {
     loadFolder(DEFAULT_PATH)
-  }, [loadFolder])
+  })
 
   const handleBack = () => {
-    if (contents?.parentPath) {
-      loadFolder(contents.parentPath)
+    const currentContents = contents()
+    if (currentContents?.parentPath) {
+      loadFolder(currentContents.parentPath)
     } else {
       navigate('/')
     }
@@ -68,8 +69,8 @@ export const PlayFolder = () => {
 
   const handleVideoLeave = () => {
     setPreviewVideo(null)
-    if (previewVideoRef.current) {
-      previewVideoRef.current.pause()
+    if (previewVideoRef && previewVideoRef.paused === false) {
+      previewVideoRef.pause()
     }
   }
 
@@ -79,29 +80,32 @@ export const PlayFolder = () => {
   }
 
   const handleCarouselVideoClick = (index: number) => {
-    if (carouselAnimating || index === currentVideoIndex) return
+    const animating = carouselAnimating()
+    const currentIndex = currentVideoIndex()
+    if (animating || index === currentIndex) return
     setCarouselAnimating(true)
     setCurrentVideoIndex(index)
     setTimeout(() => setCarouselAnimating(false), 300)
   }
 
   const getVideos = () => {
-    return contents?.items.filter((item) => item.type === 'video') || []
+    return contents()?.items.filter((item) => item.type === 'video') || []
   }
 
   const getCarouselVideos = () => {
     const videos = getVideos()
-    if (videos.length === 0 || currentVideoIndex < 0) return []
+    const currentIndex = currentVideoIndex()
+    if (videos.length === 0 || currentIndex < 0) return []
 
     const result: { video: FolderItem; position: number }[] = []
     const maxSideVideos = 3
 
     for (
-      let i = Math.max(0, currentVideoIndex - maxSideVideos);
-      i <= Math.min(videos.length - 1, currentVideoIndex + maxSideVideos);
+      let i = Math.max(0, currentIndex - maxSideVideos);
+      i <= Math.min(videos.length - 1, currentIndex + maxSideVideos);
       i++
     ) {
-      result.push({ video: videos[i], position: i - currentVideoIndex })
+      result.push({ video: videos[i], position: i - currentIndex })
     }
 
     return result
@@ -116,8 +120,8 @@ export const PlayFolder = () => {
   }
 
   const renderHeader = () => (
-    <div className="play-folder-header">
-      <button className="back-button" onClick={handleBack}>
+    <div class="play-folder-header">
+      <button class="back-button" onClick={handleBack}>
         <svg
           xmlns="http://www.w3.org/2000/svg"
           width="24"
@@ -125,53 +129,52 @@ export const PlayFolder = () => {
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
         >
           <polyline points="15 18 9 12 15 6"></polyline>
         </svg>
       </button>
-      <h2 className="folder-name">{contents?.currentPath || DEFAULT_PATH}</h2>
+      <h2 class="folder-name">{contents()?.currentPath || DEFAULT_PATH}</h2>
     </div>
   )
 
   const renderFolders = () => (
-    <div className="folder-list">
-      {contents?.items.map((item) => (
-        <div key={item.path} className="folder-item" onClick={() => handleFolderClick(item)}>
-          <div className="folder-icon">📁</div>
-          <div className="folder-item-name">{item.name}</div>
+    <div class="folder-list">
+      {contents()?.items.map((item) => (
+        <div class="folder-item" onClick={() => handleFolderClick(item)}>
+          <div class="folder-icon">📁</div>
+          <div class="folder-item-name">{item.name}</div>
         </div>
       ))}
     </div>
   )
 
   const renderVideos = () => (
-    <div className="video-list">
-      {contents?.items.map((item, index) => (
+    <div class="video-list">
+      {contents()?.items.map((item, index) => (
         <div
-          key={item.path}
-          className="video-item"
+          class="video-item"
           onClick={() => handleVideoClick(item, index)}
           onMouseEnter={() => handleVideoHover(item)}
           onMouseLeave={handleVideoLeave}
         >
-          {previewVideo === item.path ? (
+          {previewVideo() === item.path ? (
             <video
               ref={previewVideoRef}
-              className="video-preview"
+              class="video-preview"
               src={getVideoUrl(item.path)}
-              autoPlay
+              autoplay
               muted
               loop
             />
           ) : (
-            <div className="video-thumbnail">
+            <div class="video-thumbnail">
               <img
                 src={getThumbnailUrl(item.path)}
                 alt={item.name}
-                className="thumbnail-image"
+                class="thumbnail-image"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement
                   target.style.display = 'none'
@@ -179,10 +182,10 @@ export const PlayFolder = () => {
                   if (fallback) fallback.style.display = 'flex'
                 }}
               />
-              <div className="video-icon fallback-icon" style={{ display: 'none' }}>🎬</div>
+              <div class="video-icon fallback-icon" style={{ display: 'none' }}>🎬</div>
             </div>
           )}
-          <div className="video-item-name">{item.name}</div>
+          <div class="video-item-name">{item.name}</div>
         </div>
       ))}
     </div>
@@ -203,17 +206,19 @@ export const PlayFolder = () => {
 
     const videoElement = (
       <video
-        ref={isCenter ? fullscreenVideoRef : null}
-        className={`carousel-video ${isCenter ? 'center' : 'side'}`}
+        ref={(el) => {
+          if (isCenter) fullscreenVideoRef = el;
+        }}
+        class={`carousel-video ${isCenter ? 'center' : 'side'}`}
         src={getVideoUrl(video.path)}
-        autoPlay={isCenter}
+        autoplay={isCenter}
         muted={!isCenter}
         loop
         controls={isCenter}
         style={{
           opacity,
           transform: `translateX(${translateX}px) scale(${scale})`,
-          zIndex: 10 - absPosition,
+          'z-index': String(10 - absPosition),
         }}
         onClick={() => !isCenter && handleCarouselVideoClick(index)}
       />
@@ -222,9 +227,8 @@ export const PlayFolder = () => {
     if (isCenter) {
       return (
         <a
-          key={video.path}
           href={convertPathToExternalUrl(video.path)}
-          className="carousel-video-link"
+          class="carousel-video-link"
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.preventDefault()}
@@ -235,20 +239,23 @@ export const PlayFolder = () => {
     }
 
     return (
-      <div key={video.path} className="carousel-video-wrapper">
+      <div class="carousel-video-wrapper">
         {videoElement}
       </div>
     )
   }
 
   const renderFullscreen = () => {
-    if (!isFullscreen || currentVideoIndex < 0) return null
+    const fullscreen = isFullscreen()
+    const currentIndex = currentVideoIndex()
+    if (!fullscreen || currentIndex < 0) return null
+    
     const carouselVideos = getCarouselVideos()
     const videos = getVideos()
 
     return (
-      <div className="fullscreen-overlay">
-        <button className="close-button" onClick={handleCloseFullscreen}>
+      <div class="fullscreen-overlay">
+        <button class="close-button" onClick={handleCloseFullscreen}>
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="32"
@@ -256,16 +263,16 @@ export const PlayFolder = () => {
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
           >
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
         </button>
-        <div className={`carousel-container ${carouselAnimating ? 'animating' : ''}`}>
-          {carouselVideos.map(({ video, position }) =>
+        <div class={`carousel-container ${carouselAnimating() ? 'animating' : ''}`}>
+          {carouselVideos.map(({ video, position }, idx) =>
             renderCarouselVideo(
               video,
               position,
@@ -277,16 +284,17 @@ export const PlayFolder = () => {
     )
   }
 
-  if (loading) return <div className="play-folder loading">Loading...</div>
-  if (error) return <div className="play-folder error">{error}</div>
-
   return (
-    <div className="play-folder">
-      {renderHeader()}
-      <div className="content-area">
-        {contents?.contentType === 'folders' ? renderFolders() : renderVideos()}
-      </div>
-      {renderFullscreen()}
-    </div>
+    <Show when={!loading()} fallback={<div class="play-folder loading">Loading...</div>}>
+      <Show when={!error()} fallback={<div class="play-folder error">{error()}</div>}>
+        <div class="play-folder">
+          {renderHeader()}
+          <div class="content-area">
+            {contents()?.contentType === 'folders' ? renderFolders() : renderVideos()}
+          </div>
+          {renderFullscreen()}
+        </div>
+      </Show>
+    </Show>
   )
 }

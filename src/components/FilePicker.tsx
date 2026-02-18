@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { createSignal } from 'solid-js'
 import { openFilePicker } from '../utils/api'
 import './FilePicker.css'
 
@@ -10,15 +10,15 @@ interface FilePickerProps {
   defaultFolder?: string
 }
 
-export const FilePicker = ({ value, onChange, label, required, defaultFolder }: FilePickerProps) => {
-  const [loading, setLoading] = useState<'file' | 'folder' | null>(null)
+export const FilePicker = (props: FilePickerProps) => {
+  const [loading, setLoading] = createSignal<'file' | 'folder' | null>(null)
 
   const handleBrowseFolder = async () => {
     setLoading('folder')
     try {
-      const result = await openFilePicker('folder', defaultFolder)
+      const result = await openFilePicker('folder', props.defaultFolder)
       if (!result.cancelled && result.path) {
-        onChange(result.path)
+        props.onChange(result.path)
       }
     } catch (err) {
       console.error('Folder picker error:', err)
@@ -30,9 +30,9 @@ export const FilePicker = ({ value, onChange, label, required, defaultFolder }: 
   const handleBrowseFile = async () => {
     setLoading('file')
     try {
-      const result = await openFilePicker('file', defaultFolder)
+      const result = await openFilePicker('file', props.defaultFolder)
       if (!result.cancelled && result.path) {
-        onChange(result.path)
+        props.onChange(result.path)
       }
     } catch (err) {
       console.error('File picker error:', err)
@@ -41,39 +41,40 @@ export const FilePicker = ({ value, onChange, label, required, defaultFolder }: 
     }
   }
 
-  const handlePathChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChange(e.target.value)
+  const handlePathChange = (e: Event) => {
+    const target = e.target as HTMLInputElement;
+    props.onChange(target.value)
   }
 
   return (
-    <div className="file-picker">
+    <div class="file-picker">
       <label>
-        {label}
-        {required && <span className="required">*</span>}
+        {props.label}
+        {props.required && <span class="required">*</span>}
       </label>
       <input
         type="text"
-        value={value}
-        onChange={handlePathChange}
+        value={props.value}
+        onInput={handlePathChange}
         placeholder="Enter path or click Browse"
-        className="file-picker-input"
+        class="file-picker-input"
       />
-      <div className="file-picker-buttons">
+      <div class="file-picker-buttons">
         <button
           type="button"
-          className="browse-button browse-folder"
+          class="browse-button browse-folder"
           onClick={handleBrowseFolder}
-          disabled={loading !== null}
+          disabled={loading() !== null}
         >
-          {loading === 'folder' ? '...' : '📁 Folder'}
+          {loading() === 'folder' ? '...' : '📁 Folder'}
         </button>
         <button
           type="button"
-          className="browse-button browse-file"
+          class="browse-button browse-file"
           onClick={handleBrowseFile}
-          disabled={loading !== null}
+          disabled={loading() !== null}
         >
-          {loading === 'file' ? '...' : '📄 File'}
+          {loading() === 'file' ? '...' : '📄 File'}
         </button>
       </div>
     </div>

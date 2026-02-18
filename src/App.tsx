@@ -1,39 +1,30 @@
-import { useState } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { Show } from 'solid-js'
+import { Router, Route } from '@solidjs/router'
 import './App.css'
 import { HomePage } from './components/HomePage'
 import { CallPage } from './components/CallPage'
 import { PlayFolder } from './components/PlayFolder'
-import type { SelectedItem } from './types/workflow'
+import { homeStore, homeStoreActions } from './stores/homeStore'
 
 const MainContent = () => {
-  const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null)
-
-  const handleSelectItem = (item: SelectedItem) => {
-    setSelectedItem(item)
-  }
-
-  const handleBack = () => {
-    setSelectedItem(null)
-  }
-
-  return selectedItem ? (
-    <CallPage item={selectedItem} onBack={handleBack} />
-  ) : (
-    <HomePage onSelectItem={handleSelectItem} />
+  return (
+    <Show
+      when={homeStore.selectedItem}
+      fallback={<HomePage />}
+    >
+      {(item) => <CallPage item={item()} onBack={homeStoreActions.clearSelection} />}
+    </Show>
   )
 }
 
 function App() {
   return (
-    <BrowserRouter>
-      <div className="app">
-        <Routes>
-          <Route path="/" element={<MainContent />} />
-          <Route path="/play-folder" element={<PlayFolder />} />
-        </Routes>
-      </div>
-    </BrowserRouter>
+    <div class="app">
+      <Router>
+        <Route path="/" component={MainContent} />
+        <Route path="/play-folder" component={PlayFolder} />
+      </Router>
+    </div>
   )
 }
 
