@@ -1,12 +1,27 @@
+import { createMemo } from 'solid-js'
 import { createStore } from 'solid-js/store'
 import { getWorkflows, getTasks, getUIPages } from '../utils/api'
 import type {
   WorkflowCategory,
+  WorkflowDefinition,
+  TaskDefinition,
   TaskCategory,
   UIPage,
   SelectedItem,
   TabType,
 } from '../types/workflow'
+
+export interface TabDefinition {
+  key: TabType
+  label: string
+}
+
+export const tabs: TabDefinition[] = [
+  { key: 'local', label: 'Local Workflows' },
+  { key: 'ui', label: 'UI' },
+  { key: 'test', label: 'Test Workflows' },
+  { key: 'task', label: 'Tasks' },
+]
 
 export interface HomeStoreState {
   localWorkflows: WorkflowCategory[]
@@ -19,7 +34,7 @@ export interface HomeStoreState {
   activeTab: TabType
 }
 
-const initialState: HomeStoreState = {
+const getInitialState = (): HomeStoreState => ({
   localWorkflows: [],
   testWorkflows: [],
   tasks: [],
@@ -28,9 +43,20 @@ const initialState: HomeStoreState = {
   error: null,
   selectedItem: null,
   activeTab: 'local',
-}
+})
 
-export const [homeStore, setHomeStore] = createStore<HomeStoreState>(initialState)
+export const [homeStore, setHomeStore] = createStore<HomeStoreState>(getInitialState())
+
+const activeWorkflows = createMemo(() => {
+  const tab = homeStore.activeTab
+  if (tab === 'local') return homeStore.localWorkflows
+  if (tab === 'test') return homeStore.testWorkflows
+  return []
+})
+
+export const homeDerived = {
+  activeWorkflows,
+}
 
 export const homeStoreActions = {
   loadData: async () => {
@@ -43,7 +69,6 @@ export const homeStoreActions = {
         getUIPages(),
       ])
 
-      // Process workflow data - ensure it's an array of categories
       const processedWorkflowData: WorkflowCategory[] = Array.isArray(workflowData)
         ? workflowData
         : []
@@ -67,6 +92,24 @@ export const homeStoreActions = {
     }
   },
 
+  selectWorkflow: (workflow: WorkflowDefinition) => {
+    setHomeStore('selectedItem', {
+      type: 'workflow',
+      key: workflow.key,
+      name: workflow.name,
+      inputs: workflow.inputs || [],
+    })
+  },
+
+  selectTask: (task: TaskDefinition) => {
+    setHomeStore('selectedItem', {
+      type: 'task',
+      key: task.key,
+      name: task.name,
+      inputs: task.inputs,
+    })
+  },
+
   selectItem: (item: SelectedItem) => {
     setHomeStore('selectedItem', item)
   },
@@ -80,6 +123,6 @@ export const homeStoreActions = {
   },
 
   reset: () => {
-    setHomeStore(initialState)
+    setHomeStore(getInitialState())
   },
 }
