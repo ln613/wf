@@ -2,3 +2,4 @@
 export * from './homeStore';
 export * from './callPageStore';
 export * from './todoStore';
+export * from './playFolderStore';

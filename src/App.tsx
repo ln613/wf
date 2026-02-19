@@ -4,18 +4,13 @@ import './App.css'
 import { HomePage } from './components/HomePage'
 import { CallPage } from './components/CallPage'
 import { PlayFolder } from './components/PlayFolder'
-import { homeStore, homeStoreActions } from './stores/homeStore'
+import { homeStore } from './stores/homeStore'
 
-const MainContent = () => {
-  return (
-    <Show
-      when={homeStore.selectedItem}
-      fallback={<HomePage />}
-    >
-      {(item) => <CallPage item={item()} onBack={homeStoreActions.clearSelection} />}
-    </Show>
-  )
-}
+const MainContent = () => (
+  <Show when={homeStore.selectedItem} fallback={<HomePage />}>
+    <CallPage />
+  </Show>
+)
 
 function App() {
   return (

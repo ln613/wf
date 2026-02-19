@@ -1,6 +1,6 @@
 import { createStore } from 'solid-js/store';
-import { runWorkflow, runTask } from '../utils/api';
-import type { SelectedItem, TaskInput } from '../types/workflow';
+import { runWorkflow, runTask } from '../utils/api'
+import type { SelectedItem, TaskInput } from '../types/workflow'
 
 export interface CallPageStoreState {
   inputs: Record<string, string>;
@@ -11,16 +11,16 @@ export interface CallPageStoreState {
   loadingOptions: Record<string, boolean>;
 }
 
-const initialState: CallPageStoreState = {
+const getInitialState = (): CallPageStoreState => ({
   inputs: {},
   result: null,
   loading: false,
   error: null,
   dropdownOptions: {},
   loadingOptions: {},
-};
+})
 
-export const [callPageStore, setCallPageStore] = createStore<CallPageStoreState>(initialState);
+export const [callPageStore, setCallPageStore] = createStore<CallPageStoreState>(getInitialState())
 
 export const callPageStoreActions = {
   initializeItem: (item: SelectedItem) => {
@@ -85,7 +85,7 @@ export const callPageStoreActions = {
     setCallPageStore('inputs', name, value);
   },
 
-  handleCall: async (itemKey: string, itemInputs: TaskInput[]) => {
+  handleCall: async (itemKey: string) => {
     try {
       setCallPageStore({ loading: true, error: null, result: null });
       const response = await runWorkflow(itemKey, callPageStore.inputs);
@@ -99,6 +99,6 @@ export const callPageStoreActions = {
   },
 
   reset: () => {
-    setCallPageStore(initialState);
+    setCallPageStore(getInitialState())
   },
 };
