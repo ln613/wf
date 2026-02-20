@@ -1,7 +1,7 @@
 .call-page {
-  max-width: 600px;
-  margin: 0 auto;
+  width: 100%;
   padding: 20px;
+  box-sizing: border-box;
 }
 
 .back-button {

@@ -104,6 +104,11 @@ const executeTaskStep = async (taskStep, context) => {
   if (taskStep.forEach) {
     return executeForEach(taskStep, context)
   }
+
+  // Handle inline handler functions
+  if (taskStep.handler) {
+    return executeInlineHandler(taskStep, context)
+  }
   
   const task = resolveTask(taskStep)
   const taskInputs = resolveTaskInputs(task, taskStep, context)
@@ -120,6 +125,27 @@ const executeTaskStep = async (taskStep, context) => {
     return { [taskStep.outputAs]: result }
   }
   
+  return result
+}
+
+/**
+ * Execute an inline handler function
+ * @param {Object} taskStep - Task step with handler function
+ * @param {Object} context - Context object
+ * @returns {Object} Result from handler, optionally wrapped with outputAs
+ */
+const executeInlineHandler = async (taskStep, context) => {
+  const result = await taskStep.handler(context)
+
+  if (taskStep.debug) {
+    console.log(`[DEBUG] Inline handler`)
+    console.log(`[DEBUG] Output:`, JSON.stringify(result, null, 2))
+  }
+
+  if (taskStep.outputAs) {
+    return { [taskStep.outputAs]: result }
+  }
+
   return result
 }
 
@@ -252,7 +278,10 @@ const executeForEach = async (taskStep, context) => {
       }
     }
   } else if (forEach.items) {
-    items = Array.isArray(forEach.items) ? forEach.items : [forEach.items]
+    const resolvedItems = typeof forEach.items === 'function'
+      ? await forEach.items(context)
+      : resolveValue(forEach.items, context)
+    items = Array.isArray(resolvedItems) ? resolvedItems : [resolvedItems]
   }
   
   const results = []

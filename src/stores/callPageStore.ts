@@ -30,15 +30,15 @@ export const callPageStoreActions = {
     item.inputs.forEach((input) => {
       // Set default value for radio buttons
       if (input.type === 'radio' && input.options && input.options.length > 0) {
-        const defaultValue = input.default || input.options[0].value;
+        const defaultValue = String(input.default || input.options[0].value);
         if (!callPageStore.inputs[input.name]) {
           newInputs[input.name] = defaultValue;
         }
       }
-      // Set default value for string/text inputs
-      if ((input.type === 'string' || input.type === 'text' || !input.type) && input.default) {
+      // Set default value for string/text/number inputs
+      if ((input.type === 'string' || input.type === 'text' || input.type === 'number' || !input.type) && input.default !== undefined) {
         if (!callPageStore.inputs[input.name]) {
-          newInputs[input.name] = input.default;
+          newInputs[input.name] = String(input.default);
         }
       }
     });
@@ -66,7 +66,7 @@ export const callPageStoreActions = {
       // Set default value if available
       if (optionsList.length > 0) {
         const defaultValue = input.default
-          ? optionsList.find((opt) => opt.includes(input.default!)) || optionsList[0]
+          ? optionsList.find((opt) => opt.includes(String(input.default))) || optionsList[0]
           : optionsList[0];
         
         if (!callPageStore.inputs[input.name]) {

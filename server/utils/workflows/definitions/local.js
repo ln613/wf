@@ -1,3 +1,12 @@
+import {
+  getMp4Files,
+  computeKsCutTimes,
+  getFilesWithFolderName,
+  prepareComfyFsvFile,
+  buildComfyFsvWorkflowInputs,
+  postProcessComfyFsv,
+} from './localUtils.js'
+
 export const localWorkflows = {
   wwQc: {
     name: 'WW QC',
@@ -168,33 +177,55 @@ export const localWorkflows = {
     category: 'local',
     inputs: [
       {
-        name: 'filePath',
-        type: 'string',
-        label: 'File Path',
+        name: 'path',
+        type: 'file',
+        label: 'File or Folder Path',
         required: true,
+        defaultFolder: 'C:\\T\\ks',
       },
       {
-        name: 'start',
+        name: 'trimStart',
         type: 'number',
-        label: 'Start Time (seconds)',
+        label: 'Trim Start (seconds)',
         required: false,
+        default: 0.133,
       },
       {
-        name: 'end',
+        name: 'trimEnd',
         type: 'number',
-        label: 'End Time (seconds)',
+        label: 'Trim End (seconds)',
         required: false,
+        default: 3.508,
       },
     ],
     tasks: [
       {
-        taskName: 'KS Cut Process',
-        inputs: {
-          filePath: '{{filePath}}',
-          start: '{{start}}',
-          end: '{{end}}',
+        handler: getMp4Files,
+      },
+      {
+        forEach: {
+          items: '{{files}}',
+          as: 'file',
         },
-        outputAs: 'result',
+        tasks: [
+          {
+            taskName: 'FFprobe Duration',
+            inputs: { fileName: '{{file}}' },
+            outputAs: 'durationResult',
+          },
+          {
+            handler: computeKsCutTimes,
+          },
+          {
+            taskName: 'FFmpeg Cut',
+            inputs: {
+              fileName: '{{file}}',
+              start: '{{cutStart}}',
+              end: '{{cutEnd}}',
+            },
+          },
+        ],
+        combineResults: 'array',
       },
     ],
   },
@@ -215,7 +246,7 @@ export const localWorkflows = {
         ],
       },
       {
-        name: 'filePath',
+        name: 'scope',
         type: 'file',
         label: 'File or Folder Path',
         required: true,
@@ -247,21 +278,42 @@ export const localWorkflows = {
     ],
     tasks: [
       {
-        taskName: 'Comfy FSV Process',
-        inputs: {
-          type: '{{type}}',
-          filePath: '{{filePath}}',
-          count: '{{count}}',
-          order: '{{order}}',
+        handler: getFilesWithFolderName,
+      },
+      {
+        forEach: {
+          items: '{{files}}',
+          as: 'file',
         },
-        outputAs: 'result',
+        tasks: [
+          {
+            handler: prepareComfyFsvFile,
+            outputAs: 'prepResult',
+          },
+          {
+            condition: '{{prepResult.shouldProcess}}',
+            tasks: [
+              {
+                handler: buildComfyFsvWorkflowInputs,
+                outputAs: 'wfInputs',
+              },
+              {
+                taskName: 'Run ComfyUI Workflow',
+                inputs: {
+                  workflowPath: '{{wfInputs.workflowPath}}',
+                  params: '{{wfInputs.params}}',
+                  outputKey: '{{wfInputs.outputKey}}',
+                },
+                outputAs: 'comfyResult',
+              },
+              {
+                handler: postProcessComfyFsv,
+              },
+            ],
+          },
+        ],
+        combineResults: 'array',
       },
     ],
-    outputs: ['success', 'results', 'message'],
-    outputMapping: {
-      success: '{{result.success}}',
-      results: '{{result.results}}',
-      message: '{{result.message}}',
-    },
   },
 }

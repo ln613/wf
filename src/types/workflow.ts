@@ -9,7 +9,7 @@ export interface TaskInput {
   label: string
   required: boolean
   optionsApi?: string
-  default?: string
+  default?: string | number
   options?: RadioOption[]
   defaultFolder?: string
 }

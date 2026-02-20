@@ -1,5 +1,5 @@
 import { getLatestEmailWithAttachment, sendEmail } from './email.js'
-import { runWorkflow as comfyRunWorkflow, comfyFsvProcess } from './comfy.js'
+import { runWorkflow as comfyRunWorkflow } from './comfy.js'
 import {
   wait,
   navigate,
@@ -21,7 +21,7 @@ import {
 import { ollamaGenerate, ollamaList } from './llm.js'
 import { parseQcHtml, parseAllQcHtmls, parseQcExcel, qcCheck, generateReport } from './ww.js'
 import { pdfToImages, pdfToHtmls } from './doc.js'
-import { ffmpegCut, ffprobeDuration, ksCutProcess } from './media.js'
+import { ffmpegCut, ffprobeDuration } from './media.js'
 
 export const tasks = {
   email: {
@@ -352,38 +352,6 @@ export const tasks = {
       outputs: ['fileName'],
       handler: comfyRunWorkflow,
     },
-    comfyFsvProcess: {
-      name: 'Comfy FSV Process',
-      inputs: [
-        {
-          name: 'type',
-          type: 'radio',
-          label: 'Workflow Type',
-          required: false,
-          default: 'fsv',
-          options: [
-            { value: 'fsv', text: 'fsv' },
-            { value: 'fsvr', text: 'fsvr' },
-            { value: 'fsi', text: 'fsi' },
-          ],
-        },
-        { name: 'filePath', type: 'file', label: 'File or Folder Path', required: true },
-        {
-          name: 'count',
-          type: 'radio',
-          label: 'Face Count',
-          required: false,
-          default: '1',
-          options: [
-            { value: '1', text: '1' },
-            { value: '2', text: '2' },
-            { value: '3', text: '3' },
-          ],
-        },
-      ],
-      outputs: ['success', 'results', 'message'],
-      handler: comfyFsvProcess,
-    },
   },
   media: {
     ffmpegCut: {
@@ -405,16 +373,6 @@ export const tasks = {
       ],
       outputs: ['success', 'duration', 'message'],
       handler: ffprobeDuration,
-    },
-    ksCutProcess: {
-      name: 'KS Cut Process',
-      inputs: [
-        { name: 'filePath', type: 'string', label: 'File or Folder Path', required: true },
-        { name: 'start', type: 'number', label: 'Start Time (seconds)', required: false },
-        { name: 'end', type: 'number', label: 'End Time (seconds)', required: false },
-      ],
-      outputs: ['success', 'results', 'message'],
-      handler: ksCutProcess,
     },
   },
 }

@@ -64,17 +64,15 @@ condition 2:
 
 ### Input
 
-- file path
-- start
-- end
+- path: file picker, default folder is C:\T\ks
+- trim start (initial value 0.133)
+- trim end (initial value 3.508)
 
 ### Tasks
 
 - if file path is a folder, get all '.mp4' files in the folder, and do the following for each file sequentially
 - ffprobe duration (file path)
-- if start is empty, start = 0.133
-- if end is empty, end = duration - 3.508
-- ffmpeg cut (selected file path, start, end)
+- ffmpeg cut (selected file path, start: trim start || 0, end: duration - (trim end || 0))
 
 ### Output
 
