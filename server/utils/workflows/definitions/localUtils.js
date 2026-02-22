@@ -8,17 +8,17 @@ import { pinyin } from 'pinyin-pro'
 
 /**
  * Resolve a file path to a list of .mp4 files
- * If path is a folder, returns all .mp4 files; otherwise returns the single file
+ * If path is a folder, returns all .mp4 files (ignoring sub folders); otherwise returns the single file
  */
 export const getMp4Files = async (ctx) => {
   validatePath(ctx.path)
   const s = await stat(ctx.path)
   if (s.isDirectory()) {
-    const entries = await readdir(ctx.path)
+    const entries = await readdir(ctx.path, { withFileTypes: true })
     return {
       files: entries
-        .filter((f) => f.toLowerCase().endsWith('.mp4'))
-        .map((f) => join(ctx.path, f)),
+        .filter((e) => e.isFile() && e.name.toLowerCase().endsWith('.mp4'))
+        .map((e) => join(ctx.path, e.name)),
     }
   }
   return { files: [ctx.path] }
@@ -41,15 +41,17 @@ const COMFY_OUTPUT_DIR = '\\\\nan-ai\\aic\\Software\\comfy\\ComfyUI\\output'
 const OUTPUT_BASE_DIR = 'C:\\T\\fg\\v'
 
 /**
- * Resolve scope (file or folder) to a list of files with optional folder name
+ * Resolve scope (file or folder) to a list of files (ignoring sub folders) with optional folder name
  */
 export const getFilesWithFolderName = async (ctx) => {
   validatePath(ctx.scope)
   const s = await stat(ctx.scope)
   if (s.isDirectory()) {
-    const entries = await readdir(ctx.scope)
+    const entries = await readdir(ctx.scope, { withFileTypes: true })
     return {
-      files: entries.map((f) => join(ctx.scope, f)),
+      files: entries
+        .filter((e) => e.isFile())
+        .map((e) => join(ctx.scope, e.name)),
       folderName: basename(ctx.scope),
     }
   }

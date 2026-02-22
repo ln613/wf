@@ -70,7 +70,7 @@ condition 2:
 
 ### Tasks
 
-- if file path is a folder, get all '.mp4' files in the folder, and do the following for each file sequentially
+- if file path is a folder, get all '.mp4' files in the folder (ignore sub folders), and do the following for each file sequentially
 - ffprobe duration (file path)
 - ffmpeg cut (selected file path, start: trim start || 0, end: duration - (trim end || 0))
 
@@ -90,7 +90,7 @@ condition 2:
 ### Tasks
 
 - if scope is folder:
-  - get all files in the folder
+  - get all files in the folder (ignore sub folders)
   - get folder name from the folder path
 - do the following for each file sequentially
   - get file name from the file path, including extension
