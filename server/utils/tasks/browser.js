@@ -225,30 +225,7 @@ export const waitForElement = async ({
   }
 
   const { page } = connection
-  const startTime = Date.now()
-  const timeoutMs = timeoutSeconds * 1000
-  const pollIntervalMs = pollIntervalSeconds * 1000
-
-  while (Date.now() - startTime < timeoutMs) {
-    const elements = await page.$$(selector)
-
-    if (elements.length > 0) {
-      return {
-        found: true,
-        count: elements.length,
-        selector,
-      }
-    }
-
-    await sleep(pollIntervalMs)
-  }
-
-  return {
-    found: false,
-    count: 0,
-    selector,
-    error: `Element not found after ${timeoutSeconds} seconds`,
-  }
+  return pollForElement(page, selector, timeoutSeconds, pollIntervalSeconds)
 }
 
 /**
@@ -735,6 +712,55 @@ const getExcelFilesInFolder = async (fs, folder) => {
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
 /**
+ * Poll for element(s) on a page, stopping early if the page finishes loading
+ * without the element being found.
+ * @param {import('puppeteer-core').Page} page - Puppeteer page
+ * @param {string} selector - CSS query selector
+ * @param {number} timeoutSeconds - Maximum seconds to wait
+ * @param {number} pollIntervalSeconds - Seconds between polls (default: 1)
+ * @returns {Object} Result with found status and count
+ */
+const pollForElement = async (page, selector, timeoutSeconds, pollIntervalSeconds = 1) => {
+  const startTime = Date.now()
+  const timeoutMs = timeoutSeconds * 1000
+  const pollIntervalMs = pollIntervalSeconds * 1000
+
+  let pageLoadFired = false
+  const onLoad = () => { pageLoadFired = true }
+  page.on('load', onLoad)
+
+  try {
+    while (Date.now() - startTime < timeoutMs) {
+      const elements = await page.$$(selector)
+
+      if (elements.length > 0) {
+        return { found: true, count: elements.length, selector }
+      }
+
+      if (pageLoadFired) {
+        return {
+          found: false,
+          count: 0,
+          selector,
+          error: 'Element not found after page finished loading',
+        }
+      }
+
+      await sleep(pollIntervalMs)
+    }
+
+    return {
+      found: false,
+      count: 0,
+      selector,
+      error: `Element not found after ${timeoutSeconds} seconds`,
+    }
+  } finally {
+    page.off('load', onLoad)
+  }
+}
+
+/**
  * Parse a mapping object (or JS object literal string) into an array of mapping row objects
  * Each value is in the format "{sub selector}@{attr}"
  * If @{attr} is omitted, defaults to 'text'
@@ -862,24 +888,8 @@ const validateExtractByMappingInput = (url, listSelector, mapping) => {
  * @param {number} timeoutSeconds - Timeout in seconds
  * @returns {Object} Result with found status
  */
-const waitForListElements = async (page, selector, timeoutSeconds) => {
-  const timeoutMs = timeoutSeconds * 1000
-  const pollIntervalMs = 1000
-  const startTime = Date.now()
-
-  while (Date.now() - startTime < timeoutMs) {
-    const elements = await page.$$(selector)
-    if (elements.length > 0) {
-      return { found: true, count: elements.length }
-    }
-    await sleep(pollIntervalMs)
-  }
-
-  return {
-    found: false,
-    error: `List elements not found after ${timeoutSeconds} seconds`,
-  }
-}
+const waitForListElements = (page, selector, timeoutSeconds) =>
+  pollForElement(page, selector, timeoutSeconds)
 
 /**
  * Extract data from a list of elements using mapping rows
