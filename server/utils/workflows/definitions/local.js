@@ -123,17 +123,17 @@ export const localWorkflows = {
         required: true,
       },
       {
-        name: 'querySelector',
+        name: 'listSelector',
         type: 'string',
-        label: 'Query Selector',
+        label: 'List Selector',
         required: true,
       },
       {
-        name: 'attributes',
-        type: 'string',
-        label: 'Attributes (comma separated)',
-        required: false,
-        default: 'text',
+        name: 'mapping',
+        type: 'text',
+        label: 'Mapping',
+        required: true,
+        rows: 10,
       },
     ],
     tasks: [
@@ -146,22 +146,13 @@ export const localWorkflows = {
         outputAs: 'browserWindow',
       },
       {
-        taskName: 'Wait for Element',
+        taskName: 'Extract by Mapping',
         inputs: {
           connectionId: '{{browserWindow.connectionId}}',
-          selector: '{{querySelector}}',
+          listSelector: '{{listSelector}}',
+          mapping: '{{mapping}}',
         },
-        outputAs: 'waitResult',
-      },
-      {
-        condition: '{{waitResult.found}}',
-        taskName: 'Get Attribute',
-        inputs: {
-          connectionId: '{{browserWindow.connectionId}}',
-          selector: '{{querySelector}}',
-          attributes: '{{attributes}}',
-        },
-        outputAs: 'extractedAttributes',
+        outputAs: 'extractResult',
       },
       {
         taskName: 'Close Browser Window',
@@ -170,7 +161,7 @@ export const localWorkflows = {
         },
       },
     ],
-    output: ['extractedAttributes', 'waitResult'],
+    output: ['extractResult'],
   },
   ksCut: {
     name: 'KS Cut',

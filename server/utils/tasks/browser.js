@@ -735,6 +735,168 @@ const getExcelFilesInFolder = async (fs, folder) => {
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
 /**
+ * Parse a mapping string into an array of mapping row objects
+ * Each row is in the format "{name}: {sub selector}@{attr}"
+ * If @{attr} is omitted, defaults to 'text'
+ * @param {string} mapping - Multiline mapping string
+ * @returns {Array<{name: string, subSelector: string, attr: string}>}
+ */
+const parseMappingRows = (mapping) => {
+  if (!mapping) return []
+  return mapping
+    .split('\n')
+    .map((row) => row.trim())
+    .filter((row) => row.length > 0)
+    .map(parseSingleMappingRow)
+}
+
+/**
+ * Parse a single mapping row string into a structured object
+ * @param {string} row - Row in format "{name}: {sub selector}@{attr}"
+ * @returns {{name: string, subSelector: string, attr: string}}
+ */
+const parseSingleMappingRow = (row) => {
+  const colonIndex = row.indexOf(':')
+  if (colonIndex === -1) {
+    throw new Error(`Invalid mapping row format (missing ":"): ${row}`)
+  }
+
+  const name = row.substring(0, colonIndex).trim()
+  const rest = row.substring(colonIndex + 1).trim()
+
+  const atIndex = rest.lastIndexOf('@')
+  if (atIndex === -1) {
+    return { name, subSelector: rest, attr: 'text' }
+  }
+
+  const subSelector = rest.substring(0, atIndex).trim()
+  const attr = rest.substring(atIndex + 1).trim() || 'text'
+  return { name, subSelector, attr }
+}
+
+/**
+ * Get an attribute value from a Puppeteer element handle
+ * @param {import('puppeteer-core').ElementHandle} element - Element handle
+ * @param {string} attr - Attribute name ('text', 'innerHTML', 'outerHTML', or any HTML attribute)
+ * @returns {Promise<string|null>} Attribute value
+ */
+const getElementAttrValue = async (element, attr) => {
+  if (attr === 'text' || attr === 'textContent') {
+    return element.evaluate((el) => el.textContent?.trim())
+  }
+  if (attr === 'innerHTML') {
+    return element.evaluate((el) => el.innerHTML)
+  }
+  if (attr === 'outerHTML') {
+    return element.evaluate((el) => el.outerHTML)
+  }
+  return element.evaluate((el, a) => el.getAttribute(a), attr)
+}
+
+/**
+ * Extract data from a list of elements using a mapping definition
+ * @param {Object} inputs
+ * @param {string} inputs.connectionId - Browser connection ID
+ * @param {string} inputs.listSelector - CSS selector for the list elements
+ * @param {string} inputs.mapping - Multiline mapping string, each row: "{name}: {sub selector}@{attr}"
+ * @param {number} inputs.timeoutSeconds - Maximum seconds to wait for list elements (default: 30)
+ * @returns {Object} Result with extracted data array or error
+ */
+export const extractByMapping = async ({
+  connectionId,
+  listSelector,
+  mapping,
+  timeoutSeconds = 30,
+}) => {
+  validateExtractByMappingInput(connectionId, listSelector, mapping)
+
+  const connection = browserConnections.get(connectionId)
+  if (!connection) {
+    throw new Error(`No active browser connection found for ID: ${connectionId}`)
+  }
+
+  const { page } = connection
+  const mappingRows = parseMappingRows(mapping)
+
+  const waitResult = await waitForListElements(page, listSelector, timeoutSeconds)
+  if (!waitResult.found) {
+    return { found: false, error: waitResult.error, data: null }
+  }
+
+  const listElements = await page.$$(listSelector)
+  const data = await extractDataFromElements(listElements, mappingRows)
+
+  return { found: true, data }
+}
+
+/**
+ * Validate extractByMapping inputs
+ */
+const validateExtractByMappingInput = (connectionId, listSelector, mapping) => {
+  if (!connectionId) throw new Error('connectionId is required')
+  if (!listSelector) throw new Error('listSelector is required')
+  if (!mapping) throw new Error('mapping is required')
+}
+
+/**
+ * Wait for list elements to appear on the page
+ * @param {import('puppeteer-core').Page} page - Puppeteer page
+ * @param {string} selector - CSS selector
+ * @param {number} timeoutSeconds - Timeout in seconds
+ * @returns {Object} Result with found status
+ */
+const waitForListElements = async (page, selector, timeoutSeconds) => {
+  const timeoutMs = timeoutSeconds * 1000
+  const pollIntervalMs = 1000
+  const startTime = Date.now()
+
+  while (Date.now() - startTime < timeoutMs) {
+    const elements = await page.$$(selector)
+    if (elements.length > 0) {
+      return { found: true, count: elements.length }
+    }
+    await sleep(pollIntervalMs)
+  }
+
+  return {
+    found: false,
+    error: `List elements not found after ${timeoutSeconds} seconds`,
+  }
+}
+
+/**
+ * Extract data from a list of elements using mapping rows
+ * @param {import('puppeteer-core').ElementHandle[]} elements - List of element handles
+ * @param {Array<{name: string, subSelector: string, attr: string}>} mappingRows - Parsed mapping rows
+ * @returns {Promise<Object[]>} Array of extracted data objects
+ */
+const extractDataFromElements = async (elements, mappingRows) => {
+  const data = []
+  for (const element of elements) {
+    const obj = await extractSingleElement(element, mappingRows)
+    data.push(obj)
+  }
+  return data
+}
+
+/**
+ * Extract data from a single element using mapping rows
+ * @param {import('puppeteer-core').ElementHandle} element - Element handle
+ * @param {Array<{name: string, subSelector: string, attr: string}>} mappingRows - Parsed mapping rows
+ * @returns {Promise<Object>} Extracted data object
+ */
+const extractSingleElement = async (element, mappingRows) => {
+  const obj = {}
+  for (const { name, subSelector, attr } of mappingRows) {
+    const subElement = await element.$(subSelector)
+    if (subElement) {
+      obj[name] = await getElementAttrValue(subElement, attr)
+    }
+  }
+  return obj
+}
+
+/**
  * Get default download path based on OS
  */
 const getDefaultDownloadPath = () => {

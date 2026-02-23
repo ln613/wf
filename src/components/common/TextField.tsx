@@ -19,7 +19,7 @@ export const TextField = (props: TextFieldProps) => (
         )
       }
       placeholder={props.input.label}
-      rows={4}
+      rows={props.input.rows || 4}
     />
   </div>
 )

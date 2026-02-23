@@ -17,6 +17,7 @@ import {
   toggleElement,
   selectOption,
   selectFromDropdown,
+  extractByMapping,
 } from './browser.js'
 import { ollamaGenerate, ollamaList } from './llm.js'
 import { parseQcHtml, parseAllQcHtmls, parseQcExcel, qcCheck, generateReport } from './ww.js'
@@ -189,6 +190,17 @@ export const tasks = {
       ],
       outputs: ['success', 'message'],
       handler: selectFromDropdown,
+    },
+    extractByMapping: {
+      name: 'Extract by Mapping',
+      inputs: [
+        { name: 'connectionId', type: 'string', label: 'Browser Connection ID', required: true },
+        { name: 'listSelector', type: 'string', label: 'List Element CSS Selector', required: true },
+        { name: 'mapping', type: 'text', label: 'Mapping (name: selector@attr per line)', required: true },
+        { name: 'timeoutSeconds', type: 'number', label: 'Timeout (seconds)', required: false, default: 30 },
+      ],
+      outputs: ['found', 'data', 'error'],
+      handler: extractByMapping,
     },
   },
   utility: {

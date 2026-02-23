@@ -12,6 +12,7 @@ export interface TaskInput {
   default?: string | number
   options?: RadioOption[]
   defaultFolder?: string
+  rows?: number
 }
 
 export interface TaskDefinition {

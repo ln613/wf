@@ -45,20 +45,25 @@ condition 2:
 ### Input
 
 - url
-- query selector
-- attributes (comma separated list) = ['text']
+- list selector
+- mapping (text area, 10 lines)
 
 ### Tasks
 
 - Open browser window (chrome, url)
-- Wait for the element (query selector)
-- if found, for each of the elements:
-  - Get attribute (attributes)
+- Wait for the list element L (list selector)
+- if found, for each element T in the list:
+  - for each row R of mapping: (R is in the format "{name}: {sub selector}@{attr}")
+    - create an empty object O
+    - find the first element E inside T using sub selector
+    - if found
+      - V = Get attribute (attr, default 'text') from E
+      - set {name}: {V} on O
 - close browser window
 
 ### Output
 
-- output the attribute values of all elements or not found error
+- the list of O or not found error
 
 ## KS Cut
 
