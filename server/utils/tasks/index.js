@@ -194,9 +194,9 @@ export const tasks = {
     extractByMapping: {
       name: 'Extract by Mapping',
       inputs: [
-        { name: 'connectionId', type: 'string', label: 'Browser Connection ID', required: true },
+        { name: 'url', type: 'string', label: 'URL', required: true },
         { name: 'listSelector', type: 'string', label: 'List Element CSS Selector', required: true },
-        { name: 'mapping', type: 'text', label: 'Mapping (name: selector@attr per line)', required: true },
+        { name: 'mapping', type: 'text', label: 'Mapping (JS object literal)', required: true },
         { name: 'timeoutSeconds', type: 'number', label: 'Timeout (seconds)', required: false, default: 30 },
       ],
       outputs: ['found', 'data', 'error'],

@@ -735,43 +735,47 @@ const getExcelFilesInFolder = async (fs, folder) => {
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
 /**
- * Parse a mapping string into an array of mapping row objects
- * Each row is in the format "{name}: {sub selector}@{attr}"
+ * Parse a mapping object (or JS object literal string) into an array of mapping row objects
+ * Each value is in the format "{sub selector}@{attr}"
  * If @{attr} is omitted, defaults to 'text'
- * @param {string} mapping - Multiline mapping string
+ * @param {Object|string} mapping - JS object literal or its string representation
  * @returns {Array<{name: string, subSelector: string, attr: string}>}
  */
-const parseMappingRows = (mapping) => {
-  if (!mapping) return []
-  return mapping
-    .split('\n')
-    .map((row) => row.trim())
-    .filter((row) => row.length > 0)
-    .map(parseSingleMappingRow)
+const parseMapping = (mapping) => {
+  const obj = typeof mapping === 'string' ? parseObjectLiteral(mapping) : mapping
+  if (!obj || typeof obj !== 'object') return []
+  return Object.entries(obj).map(([key, value]) => parseMappingValue(key, value))
 }
 
 /**
- * Parse a single mapping row string into a structured object
- * @param {string} row - Row in format "{name}: {sub selector}@{attr}"
+ * Parse a JS object literal string into an object
+ * Supports both JSON and JS object literal syntax
+ * @param {string} str - JS object literal string
+ * @returns {Object}
+ */
+const parseObjectLiteral = (str) => {
+  if (!str || !str.trim()) return {}
+  try {
+    return JSON.parse(str)
+  } catch {
+    return new Function('return ' + str)()
+  }
+}
+
+/**
+ * Parse a single mapping value string into a structured object
+ * @param {string} key - The property name for the output object
+ * @param {string} value - Value in format "{sub selector}@{attr}"
  * @returns {{name: string, subSelector: string, attr: string}}
  */
-const parseSingleMappingRow = (row) => {
-  const colonIndex = row.indexOf(':')
-  if (colonIndex === -1) {
-    throw new Error(`Invalid mapping row format (missing ":"): ${row}`)
-  }
-
-  const name = row.substring(0, colonIndex).trim()
-  const rest = row.substring(colonIndex + 1).trim()
-
-  const atIndex = rest.lastIndexOf('@')
+const parseMappingValue = (key, value) => {
+  const atIndex = value.lastIndexOf('@')
   if (atIndex === -1) {
-    return { name, subSelector: rest, attr: 'text' }
+    return { name: key, subSelector: value, attr: 'text' }
   }
-
-  const subSelector = rest.substring(0, atIndex).trim()
-  const attr = rest.substring(atIndex + 1).trim() || 'text'
-  return { name, subSelector, attr }
+  const subSelector = value.substring(0, atIndex).trim()
+  const attr = value.substring(atIndex + 1).trim() || 'text'
+  return { name: key, subSelector, attr }
 }
 
 /**
@@ -795,28 +799,41 @@ const getElementAttrValue = async (element, attr) => {
 
 /**
  * Extract data from a list of elements using a mapping definition
+ * Opens a browser window, extracts data, and closes the browser
  * @param {Object} inputs
- * @param {string} inputs.connectionId - Browser connection ID
+ * @param {string} inputs.url - URL to open
  * @param {string} inputs.listSelector - CSS selector for the list elements
- * @param {string} inputs.mapping - Multiline mapping string, each row: "{name}: {sub selector}@{attr}"
+ * @param {Object|string} inputs.mapping - JS object literal (or string), values in format "{sub selector}@{attr}"
  * @param {number} inputs.timeoutSeconds - Maximum seconds to wait for list elements (default: 30)
  * @returns {Object} Result with extracted data array or error
  */
 export const extractByMapping = async ({
-  connectionId,
+  url,
   listSelector,
   mapping,
   timeoutSeconds = 30,
 }) => {
-  validateExtractByMappingInput(connectionId, listSelector, mapping)
+  validateExtractByMappingInput(url, listSelector, mapping)
 
+  const browserWindow = await openBrowserWindow({ browserType: 'chrome', url })
+  try {
+    return await extractFromPage(browserWindow.connectionId, listSelector, mapping, timeoutSeconds)
+  } finally {
+    await closeBrowserWindow({ connectionId: browserWindow.connectionId })
+  }
+}
+
+/**
+ * Extract data from the current page using a mapping definition
+ */
+const extractFromPage = async (connectionId, listSelector, mapping, timeoutSeconds) => {
   const connection = browserConnections.get(connectionId)
   if (!connection) {
     throw new Error(`No active browser connection found for ID: ${connectionId}`)
   }
 
   const { page } = connection
-  const mappingRows = parseMappingRows(mapping)
+  const mappingRows = parseMapping(mapping)
 
   const waitResult = await waitForListElements(page, listSelector, timeoutSeconds)
   if (!waitResult.found) {
@@ -832,8 +849,8 @@ export const extractByMapping = async ({
 /**
  * Validate extractByMapping inputs
  */
-const validateExtractByMappingInput = (connectionId, listSelector, mapping) => {
-  if (!connectionId) throw new Error('connectionId is required')
+const validateExtractByMappingInput = (url, listSelector, mapping) => {
+  if (!url) throw new Error('url is required')
   if (!listSelector) throw new Error('listSelector is required')
   if (!mapping) throw new Error('mapping is required')
 }

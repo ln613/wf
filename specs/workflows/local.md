@@ -46,20 +46,11 @@ condition 2:
 
 - url
 - list selector
-- mapping (text area, 10 lines)
+- mapping (text area, 10 lines, initial value '{}')
 
 ### Tasks
 
-- Open browser window (chrome, url)
-- Wait for the list element L (list selector)
-- if found, for each element T in the list:
-  - for each row R of mapping: (R is in the format "{name}: {sub selector}@{attr}")
-    - create an empty object O
-    - find the first element E inside T using sub selector
-    - if found
-      - V = Get attribute (attr, default 'text') from E
-      - set {name}: {V} on O
-- close browser window
+- Extract by Mapping (url, list selector, mapping)
 
 ### Output
 

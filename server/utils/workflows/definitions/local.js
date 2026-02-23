@@ -134,34 +134,19 @@ export const localWorkflows = {
         label: 'Mapping',
         required: true,
         rows: 10,
+        default: '{\n\n}',
       },
     ],
     tasks: [
       {
-        taskName: 'Open Browser Window',
-        inputs: {
-          browserType: 'chrome',
-          url: '{{url}}',
-        },
-        outputAs: 'browserWindow',
-      },
-      {
         taskName: 'Extract by Mapping',
         inputs: {
-          connectionId: '{{browserWindow.connectionId}}',
+          url: '{{url}}',
           listSelector: '{{listSelector}}',
           mapping: '{{mapping}}',
         },
-        outputAs: 'extractResult',
-      },
-      {
-        taskName: 'Close Browser Window',
-        inputs: {
-          connectionId: '{{browserWindow.connectionId}}',
-        },
       },
     ],
-    output: ['extractResult'],
   },
   ksCut: {
     name: 'KS Cut',

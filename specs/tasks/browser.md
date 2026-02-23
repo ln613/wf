@@ -111,6 +111,32 @@ Same input as Find element
 - find the element
 - set the value of the attribute
 
+## Extract by Mapping
+
+### Input
+
+- url
+- list selector
+- mapping (js object literal)
+
+### Action
+
+- Open browser window (chrome, url)
+- Wait for the list element L (list selector)
+- if found, for each element T in the list:
+  - for each key/value pair K/V of mapping: (V is in the format "{sub selector}@{attr}")
+    - create an empty object O
+    - find the first element E inside T using sub selector
+    - if found
+      - V = Get attribute (attr, default 'text') from E
+      - set {K}: {V} on O
+- close browser window
+
+### Output
+
+- the list of O or not found error
+
+
 ## Enter text
 
 ### Input
