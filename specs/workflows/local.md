@@ -12,7 +12,7 @@
 
 condition 1:
 
-- the subject is like "FW: CARO ... Work Order ..."
+- the subject is like "... CARO ... Work Order ... Project ...", and does not contain the word "login"
 - there are 2 attachments, 1 excel file and 1 pdf
 
 condition 2:

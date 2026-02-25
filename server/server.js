@@ -1,3 +1,4 @@
+import dns from 'node:dns/promises'
 import dotenv from 'dotenv'
 import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
@@ -6,6 +7,9 @@ import { createReadStream, statSync } from 'fs'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 dotenv.config({ path: resolve(__dirname, '../.env') })
+
+// Fix for Node.js v24+ on Windows: force DNS servers to resolve MongoDB SRV records
+dns.setServers(['1.1.1.1', '8.8.8.8'])
 
 import express from 'express'
 import cors from 'cors'

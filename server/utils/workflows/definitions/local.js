@@ -23,17 +23,15 @@ export const localWorkflows = {
         conditions: [
           {
             id: 'workOrder',
-            subjectPattern: 'FW:\\s*CARO.*Work Order',
+            subjectPattern: 'CARO.*Work Order.*Project',
+            subjectExclude: 'login',
             attachments: {
               minCount: 2,
               requiredTypes: ['excel', 'pdf'],
             },
             extractLabReportId: {
-              from: 'email.attachments',
-              filter: { extension: '.pdf' },
-              property: 'filename',
-              // Extract lab report id from PDF filename (assuming format includes it)
-              pattern: '(\\d+)',
+              from: 'email.subject',
+              pattern: 'Work Order ([A-Za-z0-9]+)',
             },
             inputMapping: {
               pdfPath: {
@@ -45,10 +43,10 @@ export const localWorkflows = {
           },
           {
             id: 'labReportUpload',
-            subjectPattern: 'Lab Report Upload Successful \\(Lab: .+, Lab Report ID: (\\d+)\\)',
+            subjectPattern: 'Lab Report Upload Successful \\(Lab: .+, Lab Report ID: ([A-Za-z0-9]+)\\)',
             extractLabReportId: {
               from: 'email.subject',
-              pattern: 'Lab Report ID: (\\d+)',
+              pattern: 'Lab Report ID: ([A-Za-z0-9]+)',
             },
           },
         ],

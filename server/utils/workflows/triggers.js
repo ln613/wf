@@ -435,6 +435,15 @@ const checkCondition = (condition, eventData) => {
     }
   }
 
+  // Check subject exclusion
+  if (condition.subjectExclude) {
+    const excludeRegex = new RegExp(condition.subjectExclude, 'i')
+    if (excludeRegex.test(email.subject || '')) {
+      console.log(`[Triggers] Subject '${email.subject}' contains excluded word '${condition.subjectExclude}'`)
+      return false
+    }
+  }
+
   // Check attachment requirements
   if (condition.attachments) {
     const attachments = email.attachments || []
