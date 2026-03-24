@@ -101,7 +101,7 @@
 
 - compare the 2 analyte list, report all different, mismatch or missing values or nodes
 - rules for comparison:
-  - ignore the follwoing fields: rl, analyzed, qualifier, sampleInfo.samplingLocationCode
+  - ignore the follwoing fields: rl, analyzed, qualifier
   - for the result field: "< {value}" = "<{value}"
   - for the collectionDate field: it can be in 2 formats, "yyyy-MM-dd" and "dd-MMM-yy"
   - for the collectionTime field: ignore the time zone, such as "MDT"

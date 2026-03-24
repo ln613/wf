@@ -1003,11 +1003,11 @@ const validateQcCheckInputs = (analyteList1, analyteList2) => {
 /**
  * Fields to ignore during comparison
  */
-const IGNORED_FIELDS = ['rl', 'analyzed', 'qualifier', 'sampleInfo.samplingLocationCode']
+const IGNORED_FIELDS = ['rl', 'analyzed', 'qualifier']
 
 /**
  * Check if a field should be ignored
- * @param {string} fieldPath - Field path (e.g., 'sampleInfo.samplingLocationCode')
+ * @param {string} fieldPath - Field path (e.g., 'rl', 'analyzed')
  * @returns {boolean} True if field should be ignored
  */
 const shouldIgnoreField = (fieldPath) => {
@@ -1394,6 +1394,8 @@ const findCrossListEquivalentKey = (analyte, targetMap, direction = 'forward') =
  * @returns {Array} Array of difference objects
  */
 const compareAnalyteLists = (list1, list2) => {
+  console.log(list1)
+  console.log(list2)
   const map1 = buildAnalyteMap(list1)
   const map2 = buildAnalyteMap(list2)
   const allKeys = new Set([...map1.keys(), ...map2.keys()])
