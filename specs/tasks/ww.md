@@ -39,7 +39,7 @@
     extract the key/value pairs as the metadata. Key mapping: "REPORTED TO" -> clientName, "WORK ORDER" -> labReportId
   - if the group has only 1 item:
     - if ", Continued" is at the end of the text, remove it from the text
-    - if it is in the format "{clientSampleId} ({labSampleId}) | Matrix: {matrix} | Sampled: {collectionDate} {collectionTime}", extract the info into an object and set it as the current Sample Info. ", Continued" could be at the end of the text, which should be ignored
+    - if it is in the format "{clientSampleId} ({labSampleId}) | Matrix: {matrix} | Sampled: {collectionDate} {collectionTime (optional)}", extract the info into an object and set it as the current Sample Info. ", Continued" could be at the end of the text, which should be ignored
     - otherwise, set it as the current Category
   - if the group is in the format Analyte, Result, RL, Units, Analyzed, Qualifier (optional), add it (as an object, with unit = Units, category = current Category and sampleInfo as the current Sample Info) to the Analyte list
   - order the Analyte list by sampleInfo.labSampleId then category then analyte name

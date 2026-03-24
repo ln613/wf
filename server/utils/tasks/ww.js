@@ -195,7 +195,7 @@ const extractMetadata = (texts) => {
 
 /**
  * Check if text matches sample info format and extract it
- * Format: "{clientSampleId} ({labSampleId}) | Matrix: {matrix} | Sampled: {collectionDate} {collectionTime}"
+ * Format: "{clientSampleId} ({labSampleId}) | Matrix: {matrix} | Sampled: {collectionDate} {collectionTime (optional)}"
  * Date can be in formats: YYYY-MM-DD, MM/DD/YYYY, or similar
  * ", Continued" may appear at the end and should be ignored
  * @param {string} text - Text to check
@@ -204,8 +204,9 @@ const extractMetadata = (texts) => {
 const extractSampleInfo = (text) => {
   // Normalize whitespace (including newlines) to single spaces and remove ", Continued" suffix
   const normalizedText = removeContinuedSuffix(text.replace(/\s+/g, ' ').trim())
-  // Match format: "ClientId (LabId) | Matrix: MatrixType | Sampled: Date Time"
-  const sampleInfoRegex = /^(.+?)\s*\(([^)]+)\)\s*\|\s*Matrix:\s*(.+?)\s*\|\s*Sampled:\s*([\d\-\/]+)\s+(\d{1,2}:\d{2})$/
+  // Match format: "ClientId (LabId) | Matrix: MatrixType | Sampled: Date [Time]"
+  // collectionTime is optional
+  const sampleInfoRegex = /^(.+?)\s*\(([^)]+)\)\s*\|\s*Matrix:\s*(.+?)\s*\|\s*Sampled:\s*([\d\-\/]+)(?:\s+(\d{1,2}:\d{2}))?$/
   const match = normalizedText.match(sampleInfoRegex)
 
   if (match) {
@@ -214,7 +215,7 @@ const extractSampleInfo = (text) => {
       labSampleId: match[2].trim(),
       matrix: match[3].trim(),
       collectionDate: match[4].trim(),
-      collectionTime: match[5].trim(),
+      collectionTime: match[5] ? match[5].trim() : null,
     }
   }
   return null
