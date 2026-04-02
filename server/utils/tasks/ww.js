@@ -754,13 +754,16 @@ const EXCEL_METADATA_KEY_MAP = {
 
 /**
  * Key mapping for Excel sample info
- * "Client Sample ID" -> clientSampleId, "Lab Sample ID" -> labSampleId, Matrix -> matrix, "Sampling Location Code" -> samplingLocationCode, "Date Sampled" -> collectionDate, "Time Sampled (24h)" -> collectionTime
+ * "Client Sample ID" -> clientSampleId, "Lab Sample ID" -> labSampleId, Matrix -> matrix, "Sampling Location Code" -> samplingLocationCode, "Sampling Location Name" -> samplingLocationName, "Lab Sample Comment" -> labSampleComment, "Sample Code" -> sampleCode, "Date Sampled" -> collectionDate, "Time Sampled (24h)" -> collectionTime
  */
 const EXCEL_SAMPLE_INFO_KEY_MAP = {
   'Client Sample ID': 'clientSampleId',
   'Lab Sample ID': 'labSampleId',
   Matrix: 'matrix',
   'Sampling Location Code': 'samplingLocationCode',
+  'Sampling Location Name': 'samplingLocationName',
+  'Lab Sample Comment': 'labSampleComment',
+  'Sample Code': 'sampleCode',
   'Date Sampled': 'collectionDate',
   'Time Sampled (24h)': 'collectionTime',
 }
@@ -800,7 +803,7 @@ const extractExcelMetadataFromRows = (worksheet, firstEmptyRow) => {
 
 /**
  * Extract sample info from columns starting from D, before the analyte header row
- * Key mapping: "Client Sample ID" -> clientSampleId, "Lab Sample ID" -> labSampleId, Matrix -> matrix, "Sampling Location Code" -> samplingLocationCode, "Date Sampled" -> collectionDate, "Time Sampled (24h)" -> collectionTime
+ * Key mapping: "Client Sample ID" -> clientSampleId, "Lab Sample ID" -> labSampleId, Matrix -> matrix, "Sampling Location Code" -> samplingLocationCode, "Sampling Location Name" -> samplingLocationName, "Lab Sample Comment" -> labSampleComment, "Sample Code" -> sampleCode, "Date Sampled" -> collectionDate, "Time Sampled (24h)" -> collectionTime
  * @param {Object} worksheet - XLSX worksheet
  * @param {number} analyteHeaderRow - Analyte header row number
  * @returns {Array} Array of sample info objects with column index
@@ -1003,12 +1006,21 @@ const validateQcCheckInputs = (analyteList1, analyteList2) => {
 
 /**
  * Fields to ignore during comparison
+ * Supports both top-level fields and nested field paths (e.g., 'sampleInfo.samplingLocationCode')
  */
-const IGNORED_FIELDS = ['rl', 'analyzed', 'qualifier']
+const IGNORED_FIELDS = [
+  'rl',
+  'analyzed',
+  'qualifier',
+  'sampleInfo.samplingLocationCode',
+  'sampleInfo.samplingLocationName',
+  'sampleInfo.labSampleComment',
+  'sampleInfo.sampleCode',
+]
 
 /**
  * Check if a field should be ignored
- * @param {string} fieldPath - Field path (e.g., 'rl', 'analyzed')
+ * @param {string} fieldPath - Field path (e.g., 'rl', 'sampleInfo.samplingLocationCode')
  * @returns {boolean} True if field should be ignored
  */
 const shouldIgnoreField = (fieldPath) => {
@@ -1086,6 +1098,35 @@ const normalizeAnalyteName = (analyteName) => {
   }
   
   return name
+}
+
+/**
+ * Remove all spaces from a string for comparison
+ * @param {string} str - String to process
+ * @returns {string} String with all spaces removed
+ */
+const removeSpaces = (str) => {
+  if (typeof str !== 'string') return String(str)
+  return str.replace(/\s+/g, '')
+}
+
+/**
+ * Cross-field equivalences for sampleInfo comparison between list 1 and list 2
+ * list1Field in list 1 maps to list2Field in list 2, compared after removing spaces
+ */
+const SAMPLE_INFO_CROSS_FIELD_EQUIVALENCES = [
+  { list1Field: 'clientSampleId', list2Field: 'samplingLocationName' },
+]
+
+/**
+ * Check if two values match after removing spaces (case-insensitive)
+ * @param {string} value1 - Value from list 1
+ * @param {string} value2 - Value from list 2
+ * @returns {boolean} True if values match after removing spaces
+ */
+const matchesAfterRemovingSpaces = (value1, value2) => {
+  if (value1 == null || value2 == null) return false
+  return removeSpaces(String(value1)).toLowerCase() === removeSpaces(String(value2)).toLowerCase()
 }
 
 /**
@@ -1298,6 +1339,8 @@ const compareValues = (value1, value2, fieldPath, context = {}) => {
 
 /**
  * Compare two objects recursively
+ * Handles sampleInfo cross-field equivalences: clientSampleId (list 1) matches
+ * samplingLocationName (list 2) after removing spaces
  * @param {Object} obj1 - First object
  * @param {Object} obj2 - Second object
  * @param {string} parentPath - Parent field path
@@ -1308,7 +1351,42 @@ const compareObjects = (obj1, obj2, parentPath = '', context = {}) => {
   const differences = []
   const allKeys = new Set([...Object.keys(obj1 || {}), ...Object.keys(obj2 || {})])
 
+  // Build set of keys handled by cross-field equivalences for sampleInfo
+  const crossFieldHandled1 = new Set()
+  const crossFieldHandled2 = new Set()
+
+  if (parentPath === 'sampleInfo') {
+    const prefix = 'sampleInfo.'
+    for (const equiv of SAMPLE_INFO_CROSS_FIELD_EQUIVALENCES) {
+      const val1 = obj1?.[equiv.list1Field]
+      const val2 = obj2?.[equiv.list2Field]
+
+      if (val1 != null || val2 != null) {
+        if (matchesAfterRemovingSpaces(val1, val2)) {
+          // Values match after removing spaces - no difference to report
+          crossFieldHandled1.add(equiv.list1Field)
+          crossFieldHandled2.add(equiv.list2Field)
+        } else if (val1 != null && val2 != null) {
+          // Both exist but don't match
+          differences.push({
+            type: 'mismatch',
+            field: prefix + equiv.list1Field + ' / ' + prefix + equiv.list2Field,
+            value1: val1,
+            value2: val2,
+          })
+          crossFieldHandled1.add(equiv.list1Field)
+          crossFieldHandled2.add(equiv.list2Field)
+        }
+        // If one is null, let normal comparison handle it
+      }
+    }
+  }
+
   for (const key of allKeys) {
+    // Skip keys already handled by cross-field equivalences
+    if (crossFieldHandled1.has(key) || crossFieldHandled2.has(key)) {
+      continue
+    }
     const fieldPath = parentPath ? `${parentPath}.${key}` : key
     const diffs = compareValues(obj1?.[key], obj2?.[key], fieldPath, context)
     differences.push(...diffs)
@@ -1510,7 +1588,7 @@ const closeBrowser = async (connectionId) => {
 const loginToWirelessWater = async () => {
   const { connectionId } = await openBrowserWindow({
     browserType: 'chrome',
-    url: 'https://wirelesswater.com/Account/LogOn?ReturnUrl=%2fmain',
+    url: 'http://localhost/Account/LogOn?ReturnUrl=%2fmain',
   })
 
   await enterText({
@@ -1542,7 +1620,7 @@ const loginToWirelessWater = async () => {
 const navigateToLabArchive = async (connectionId) => {
   await navigate({
     connectionId,
-    url: 'https://wirelesswater.com/labarchive',
+    url: 'http://localhost/labarchive',
   })
 }
 

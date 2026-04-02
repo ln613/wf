@@ -8,12 +8,12 @@
 
 ### Action
 
-- Open browser window (chrome, https://wirelesswater.com/Account/LogOn?ReturnUrl=%2fmain)
+- Open browser window (chrome, http://localhost/Account/LogOn?ReturnUrl=%2fmain)
 - Enter text ('#username', WW_LAB)
 - Enter text ('#password', WW_LAB_PASSWORD)
 - Click ('button.filter')
 - Wait 3 seconds
-- Navigate to https://wirelesswater.com/labarchive
+- Navigate to http://localhost/labarchive
 - Enter text ('#txtSearch1', lab report id)
 - Click ('a[title="Search"]')
 - Wait 3 seconds
@@ -79,7 +79,7 @@
   - find the first empty row (R1)
   - extract the info before R1 as metadata (col A is key, col b is value). Key mapping: "Client Name: " -> clientName, "Lab Name: " -> labName, "Lab Report ID: " -> labReportId, "Lab Report Name: " -> labReportName
   - find the row with col A = "Analyte", col b = "Unit", col c = "Analytical Method" (R2)
-  - for each col starting from col D, extract the info before R2 as sample info (col A to C (just 1 cell, they are merged) is key). Key mapping: "Client Sample ID" -> clientSampleId, "Lab Sample ID" -> labSampleId, Matrix -> matrix, "Sampling Location Code" -> samplingLocationCode, "Date Sampled" -> collectionDate, "Time Sampled (24h)" -> collectionTime
+  - for each col starting from col D, extract the info before R2 as sample info (col A to C (just 1 cell, they are merged) is key). Key mapping: "Client Sample ID" -> clientSampleId, "Lab Sample ID" -> labSampleId, Matrix -> matrix, "Sampling Location Code" -> samplingLocationCode, "Sampling Location Name" -> samplingLocationName, "Lab Sample Comment" -> labSampleComment, "Sample Code" -> sampleCode, "Date Sampled" -> collectionDate, "Time Sampled (24h)" -> collectionTime
   - for the rows after R2:
     - ignore if it's empty, or the first cell is "Lab Results"
     - if only the first cell has value, set the value as the current Category
@@ -101,7 +101,7 @@
 
 - compare the 2 analyte list, report all different, mismatch or missing values or nodes
 - rules for comparison:
-  - ignore the follwoing fields: rl, analyzed, qualifier
+  - ignore the follwoing fields: rl, analyzed, qualifier, sampleInfo.samplingLocationCode, sampleInfo.samplingLocationName, sampleInfo.labSampleComment, sampleInfo.sampleCode
   - for the result field: "< {value}" = "<{value}"
   - for the collectionDate field: it can be in 2 formats, "yyyy-MM-dd" and "dd-MMM-yy"
   - for the collectionTime field: ignore the time zone, such as "MDT"
@@ -117,6 +117,7 @@
     - "conductivity" = "conductivity (ec)"
     - "methyl tert-butyl ether" = "methyl tert-butyl ether (MTBE)"
     - "Phosphorus, Total (as P)" under category "General Parameters" in list 1 = "Phosphorus (total, APHA 4500-P)" under category "General Parameters" in list 2
+    - sampleInfo.clientSampleId in list 1 should match sampleInfo.samplingLocationName in list 2 after removing spaces in both strings (e.g., "MP 1 A" = "MP1A")
 
 ### Output
 
