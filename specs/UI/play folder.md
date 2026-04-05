@@ -22,7 +22,12 @@ Start with folder C:\T. If the folder contains subfolders, show the sub folder l
   - show a video carousel where the middle one is playing
   - the opacity and size of the ones on both sides gradually decrease
   - wrap the middle one in <a>, and set the href = "http://192.168.1.64:6911/{the video path without 'C:\'}"
-  - when hover on the middle one, show the file name (as a link to the above url) near the top of the video
+  - when hover on the middle one, show the following near the top of the video
+    - file name (as a link to the above url)
+    - favorite icon (enabled/disabled based on whether the video is in the "!" folder)
+      - on click, copy the video to the "!" folder
+      - the "!" folder is always 1 level up the current folder (create if not exist)
+      - the file name inside "!" folder is "{sub folder name} - {file name}"
   - on other videos click: set it as the middle one and start playing (move with animation)
   - show big X at top right, on click, exit full screen
 

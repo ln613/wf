@@ -2,7 +2,7 @@ import { get, save, remove } from './db.js'
 import { ObjectId } from 'mongodb'
 import { executeWorkflow, getAllWorkflows } from './workflows/index.js'
 import { getAllTasks, getTaskByName } from './tasks/index.js'
-import { readdir, stat, access } from 'fs/promises'
+import { readdir, stat, access, mkdir, copyFile, unlink } from 'fs/promises'
 import { join, dirname, basename, extname } from 'path'
 import { homedir } from 'os'
 import { exec } from 'child_process'
@@ -326,6 +326,79 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
   }
 }
 
+const getFavoriteFolderPath = (currentFolder) => {
+  const parentDir = dirname(currentFolder)
+  return join(parentDir, '!')
+}
+
+const getFavoriteFileName = (currentFolder, fileName) => {
+  const subFolderName = basename(currentFolder)
+  return `${subFolderName} - ${fileName}`
+}
+
+const checkFavorites = async (params) => {
+  const folderPath = params.path
+  if (!folderPath) throw new Error('Folder path is required')
+
+  const favFolder = getFavoriteFolderPath(folderPath)
+  const subFolderName = basename(folderPath)
+
+  try {
+    await access(favFolder)
+    const files = await readdir(favFolder)
+    const favoriteFiles = files
+      .filter((f) => f.startsWith(`${subFolderName} - `))
+      .map((f) => f.replace(`${subFolderName} - `, ''))
+    return { favorites: favoriteFiles }
+  } catch {
+    return { favorites: [] }
+  }
+}
+
+const toggleFavorite = async (body) => {
+  validateToggleFavoriteInput(body)
+
+  const { videoPath, currentFolder } = body
+  const fileName = basename(videoPath)
+  const favFolder = getFavoriteFolderPath(currentFolder)
+  const favFileName = getFavoriteFileName(currentFolder, fileName)
+  const favFilePath = join(favFolder, favFileName)
+
+  const isFav = await isFileAccessible(favFilePath)
+
+  if (isFav) {
+    await unlink(favFilePath)
+    return { favorited: false, fileName }
+  }
+
+  await ensureDirectoryExists(favFolder)
+  await copyFile(videoPath, favFilePath)
+  return { favorited: true, fileName }
+}
+
+const validateToggleFavoriteInput = (body) => {
+  if (!body) throw new Error('Request body is required')
+  if (!body.videoPath) throw new Error('Video path is required')
+  if (!body.currentFolder) throw new Error('Current folder is required')
+}
+
+const isFileAccessible = async (filePath) => {
+  try {
+    await access(filePath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+const ensureDirectoryExists = async (dirPath) => {
+  try {
+    await access(dirPath)
+  } catch {
+    await mkdir(dirPath, { recursive: true })
+  }
+}
+
 export const apiHandlers = {
   get: {
     todos: getTodos,
@@ -334,6 +407,7 @@ export const apiHandlers = {
     uiPages: getUIPages,
     folderContents: getFolderContents,
     videoThumbnail: getVideoThumbnail,
+    checkFavorites: checkFavorites,
   },
   post: {
     todo: updateTodo,
@@ -342,5 +416,6 @@ export const apiHandlers = {
     workflow: runWorkflowHandler,
     task: runTaskHandler,
     openFilePicker: openFilePicker,
+    toggleFavorite: toggleFavorite,
   },
 }

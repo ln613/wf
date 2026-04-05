@@ -285,35 +285,64 @@
   cursor: default;
 }
 
-.carousel-filename-overlay {
+.carousel-hover-overlay {
   position: absolute;
   top: 12px;
   left: 50%;
   transform: translateX(-50%);
-  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   background: rgba(0, 0, 0, 0.7);
   padding: 6px 16px;
   border-radius: 6px;
-  font-size: 0.9rem;
-  text-decoration: none;
-  white-space: nowrap;
-  max-width: 80%;
-  overflow: hidden;
-  text-overflow: ellipsis;
   opacity: 0;
   transition: opacity 0.2s ease;
   z-index: 12;
   pointer-events: none;
+  max-width: 80%;
 }
 
-.carousel-center-wrapper:hover .carousel-filename-overlay {
+.carousel-center-wrapper:hover .carousel-hover-overlay {
   opacity: 1;
   pointer-events: auto;
 }
 
-.carousel-filename-overlay:hover {
+.carousel-filename-link {
+  color: #fff;
+  font-size: 0.9rem;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.carousel-filename-link:hover {
   text-decoration: underline;
   color: #8cf;
+}
+
+.favorite-button {
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s, transform 0.15s;
+  flex-shrink: 0;
+}
+
+.favorite-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: scale(1.15);
+}
+
+.favorite-button.active {
+  color: #ff4081;
 }
 
 .carousel-video.side {

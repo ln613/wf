@@ -71,3 +71,13 @@ export const getFolderContents = (path: string): Promise<FolderContents> =>
 
 export const getVideoThumbnail = (path: string): Promise<{ thumbnail: string }> =>
   apiGet('videoThumbnail', { path })
+
+export const checkFavorites = (
+  path: string,
+): Promise<{ favorites: string[] }> => apiGet('checkFavorites', { path })
+
+export const toggleFavorite = (
+  videoPath: string,
+  currentFolder: string,
+): Promise<{ favorited: boolean; fileName: string }> =>
+  apiPost('toggleFavorite', { videoPath, currentFolder })

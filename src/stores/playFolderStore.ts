@@ -3,6 +3,8 @@ import { createStore } from 'solid-js/store'
 import {
   getFolderContents,
   getApiHost,
+  checkFavorites,
+  toggleFavorite,
   type FolderContents,
   type FolderItem,
 } from '../utils/api'
@@ -20,6 +22,7 @@ export interface PlayFolderStoreState {
   isFullscreen: boolean
   previewVideo: string | null
   carouselAnimating: boolean
+  favorites: Set<string>
 }
 
 const getInitialState = (): PlayFolderStoreState => ({
@@ -30,6 +33,7 @@ const getInitialState = (): PlayFolderStoreState => ({
   isFullscreen: false,
   previewVideo: null,
   carouselAnimating: false,
+  favorites: new Set(),
 })
 
 export const [playFolderStore, setPlayFolderStore] =
@@ -57,9 +61,22 @@ const carouselVideos = createMemo(() => {
   return result
 })
 
+const isFavorite = (fileName: string) =>
+  playFolderStore.favorites.has(fileName)
+
 export const playFolderDerived = {
   videos,
   carouselVideos,
+  isFavorite,
+}
+
+const loadFavorites = async (folderPath: string) => {
+  try {
+    const result = await checkFavorites(folderPath)
+    setPlayFolderStore('favorites', new Set(result.favorites))
+  } catch {
+    setPlayFolderStore('favorites', new Set())
+  }
 }
 
 const loadFolder = async (path: string) => {
@@ -67,6 +84,9 @@ const loadFolder = async (path: string) => {
     setPlayFolderStore({ loading: true, error: null })
     const data = await getFolderContents(path)
     setPlayFolderStore({ contents: data, loading: false })
+    if (data.contentType === 'videos') {
+      loadFavorites(path)
+    }
   } catch (err) {
     setPlayFolderStore({
       error: err instanceof Error ? err.message : 'Failed to load folder',
@@ -103,6 +123,24 @@ export const playFolderStoreActions = {
       return
     setPlayFolderStore({ carouselAnimating: true, currentVideoIndex: index })
     setTimeout(() => setPlayFolderStore('carouselAnimating', false), CAROUSEL_ANIMATION_MS)
+  },
+
+  toggleFavorite: async (videoPath: string) => {
+    const currentFolder = playFolderStore.contents?.currentPath
+    if (!currentFolder) return
+
+    try {
+      const result = await toggleFavorite(videoPath, currentFolder)
+      const newFavorites = new Set(playFolderStore.favorites)
+      if (result.favorited) {
+        newFavorites.add(result.fileName)
+      } else {
+        newFavorites.delete(result.fileName)
+      }
+      setPlayFolderStore('favorites', newFavorites)
+    } catch (err) {
+      console.error('Failed to toggle favorite:', err)
+    }
   },
 
   reset: () => {
