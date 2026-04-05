@@ -170,22 +170,30 @@ const getCarouselStyle = (position: number) => {
 }
 
 const CenterVideo = (props: { video: FolderItem }) => (
-  <a
-    href={convertPathToExternalUrl(props.video.path)}
-    class="carousel-video-link"
-    target="_blank"
-    rel="noopener noreferrer"
-    onClick={(e) => e.preventDefault()}
-  >
-    <video
-      class="carousel-video center"
-      src={getVideoUrl(props.video.path)}
-      autoplay
-      loop
-      controls
-      style={getCarouselStyle(0)}
-    />
-  </a>
+  <div class="carousel-center-wrapper" style={getCarouselStyle(0)}>
+    <a
+      href={convertPathToExternalUrl(props.video.path)}
+      class="carousel-video-link"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <video
+        class="carousel-video center"
+        src={getVideoUrl(props.video.path)}
+        autoplay
+        loop
+        controls
+      />
+    </a>
+    <a
+      href={convertPathToExternalUrl(props.video.path)}
+      class="carousel-filename-overlay"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {props.video.name}
+    </a>
+  </div>
 )
 
 const SideVideo = (props: {

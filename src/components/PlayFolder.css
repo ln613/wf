@@ -252,16 +252,26 @@
 
 .carousel-container.animating .carousel-video,
 .carousel-container.animating .carousel-video-wrapper,
-.carousel-container.animating .carousel-video-link {
+.carousel-container.animating .carousel-video-link,
+.carousel-container.animating .carousel-center-wrapper {
   transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
 .carousel-video-wrapper,
-.carousel-video-link {
+.carousel-video-link,
+.carousel-center-wrapper {
   position: absolute;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.carousel-center-wrapper {
+  flex-direction: column;
+}
+
+.carousel-center-wrapper .carousel-video-link {
+  position: relative;
 }
 
 .carousel-video {
@@ -273,6 +283,37 @@
 
 .carousel-video.center {
   cursor: default;
+}
+
+.carousel-filename-overlay {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #fff;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  text-decoration: none;
+  white-space: nowrap;
+  max-width: 80%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 12;
+  pointer-events: none;
+}
+
+.carousel-center-wrapper:hover .carousel-filename-overlay {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.carousel-filename-overlay:hover {
+  text-decoration: underline;
+  color: #8cf;
 }
 
 .carousel-video.side {
