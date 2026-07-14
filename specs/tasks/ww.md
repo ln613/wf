@@ -8,18 +8,20 @@
 
 ### Action
 
-- Open browser window (chrome, http://localhost/Account/LogOn?ReturnUrl=%2fmain)
+- Open browser window (chrome, Host/Account/LogOn?ReturnUrl=%2fmain)
 - Enter text ('#username', WW_LAB)
 - Enter text ('#password', WW_LAB_PASSWORD)
 - Click ('button.filter')
 - Wait 3 seconds
-- Navigate to http://localhost/labarchive
+- Navigate to HOST/labarchive
 - Enter text ('#txtSearch1', lab report id)
 - Click ('a[title="Search"]')
 - Wait 3 seconds
 - Click ('a[href^="/LabArchive/SummaryView/"]')
 - Wait for the download to finish
 - Close the browser
+
+HOST = dev mode ? http://localhost : https://wirelesswater.com
 
 ## Parse QC Html
 

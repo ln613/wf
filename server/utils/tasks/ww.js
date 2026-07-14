@@ -1582,13 +1582,24 @@ const closeBrowser = async (connectionId) => {
 }
 
 /**
+ * Get the host base URL based on dev mode
+ * dev mode ? http://localhost : https://wirelesswater.com
+ * @returns {string} Host base URL (no trailing slash)
+ */
+const getHost = () => {
+  return process.env.NODE_ENV === 'development'
+    ? 'http://localhost'
+    : 'https://wirelesswater.com'
+}
+
+/**
  * Login to WirelessWater website
  * @returns {string} Browser connection ID
  */
 const loginToWirelessWater = async () => {
   const { connectionId } = await openBrowserWindow({
     browserType: 'chrome',
-    url: 'http://localhost/Account/LogOn?ReturnUrl=%2fmain',
+    url: `${getHost()}/Account/LogOn?ReturnUrl=%2fmain`,
   })
 
   await enterText({
@@ -1620,7 +1631,7 @@ const loginToWirelessWater = async () => {
 const navigateToLabArchive = async (connectionId) => {
   await navigate({
     connectionId,
-    url: 'http://localhost/labarchive',
+    url: `${getHost()}/labarchive`,
   })
 }
 
