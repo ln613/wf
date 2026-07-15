@@ -20,7 +20,7 @@ import {
   extractByMapping,
 } from './browser.js'
 import { ollamaGenerate, ollamaList } from './llm.js'
-import { parseQcHtml, parseAllQcHtmls, parseQcExcel, qcCheck, generateReport } from './ww.js'
+import { parseQcHtml, parseAllQcHtmls, parseAlsCoa, parseQcExcel, qcCheck, generateReport } from './ww.js'
 import { pdfToImages, pdfToHtmls } from './doc.js'
 import { ffmpegCut, ffprobeDuration } from './media.js'
 
@@ -304,6 +304,14 @@ export const tasks = {
       ],
       outputs: ['analytes', 'metadata'],
       handler: parseAllQcHtmls,
+    },
+    parseAlsCoa: {
+      name: 'Parse ALS COA',
+      inputs: [
+        { name: 'filePath', type: 'file', label: 'ALS COA Excel File', required: true },
+      ],
+      outputs: ['analytes', 'metadata'],
+      handler: parseAlsCoa,
     },
     parseQcExcel: {
       name: 'Parse QC Excel',

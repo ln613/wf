@@ -970,6 +970,222 @@ const createAnalytesFromRow = (rowData, currentCategory, sampleInfos) => {
 }
 
 /**
+ * Parse an ALS COA (Certificate of Analysis) Excel file
+ * Reads the "Results Summary" worksheet, extracting metadata and one analyte
+ * per (sample column, analyte row) pair.
+ * @param {Object} inputs
+ * @param {string} inputs.filePath - Path to the ALS COA Excel file (required)
+ * @returns {Object} Result with analytes list and metadata
+ */
+export const parseAlsCoa = async ({ filePath }) => {
+  validateFilePathInput(filePath)
+
+  const workbook = readExcelFile(filePath)
+  const worksheet = getWorksheetByName(workbook, 'Results Summary')
+
+  const metadata = extractAlsCoaMetadata(worksheet)
+  const analytes = extractAlsCoaAnalytes(worksheet)
+  const sortedAnalytes = sortAnalytes(analytes)
+
+  return { analytes: sortedAnalytes, metadata }
+}
+
+/**
+ * Validate file path input
+ * @param {string} filePath - File path
+ */
+const validateFilePathInput = (filePath) => {
+  if (!filePath) {
+    throw new Error('ALS COA excel file path is required')
+  }
+}
+
+/**
+ * Get a worksheet by name from a workbook
+ * @param {Object} workbook - XLSX workbook object
+ * @param {string} name - Worksheet name
+ * @returns {Object} Worksheet
+ */
+const getWorksheetByName = (workbook, name) => {
+  const worksheet = workbook.Sheets[name]
+  if (!worksheet) {
+    throw new Error(`Worksheet "${name}" not found`)
+  }
+  return worksheet
+}
+
+/**
+ * Extract metadata from the ALS COA worksheet
+ * labReportId from A1 "Results Summary {labReportId}", clientName from B4 "..., {clientName}"
+ * @param {Object} worksheet - XLSX worksheet
+ * @returns {Object} Metadata object with labReportId and clientName
+ */
+const extractAlsCoaMetadata = (worksheet) => {
+  const labReportId = extractAlsLabReportId(getCellValue(worksheet, 1, 1))
+  const clientName = extractAlsClientName(getCellValue(worksheet, 4, 2))
+  return { labReportId, clientName }
+}
+
+/**
+ * Extract lab report ID from A1 "Results Summary {labReportId}"
+ * @param {*} value - Cell A1 value
+ * @returns {string} Lab report ID
+ */
+const extractAlsLabReportId = (value) => {
+  if (typeof value !== 'string') return ''
+  return value.replace(/^Results Summary\s*/i, '').trim()
+}
+
+/**
+ * Extract client name from B4 "..., {clientName}" (text after the last comma)
+ * @param {*} value - Cell B4 value
+ * @returns {string} Client name
+ */
+const extractAlsClientName = (value) => {
+  if (typeof value !== 'string') return ''
+  const idx = value.lastIndexOf(',')
+  return idx >= 0 ? value.slice(idx + 1).trim() : value.trim()
+}
+
+/**
+ * Extract matrix from "Sub-Matrix: {matrix}"
+ * @param {*} value - Cell value
+ * @returns {*} Matrix value (prefix removed) or original value if not a string
+ */
+const extractAlsMatrix = (value) => {
+  if (typeof value !== 'string') return value
+  return value.replace(/^Sub-Matrix:\s*/i, '').trim()
+}
+
+/**
+ * Extract category from a row where A is in the format "{category} (Matrix: {matrix})"
+ * @param {*} value - Cell A value
+ * @returns {string|null} Category name or null if not a category row
+ */
+const extractAlsCategory = (value) => {
+  if (typeof value !== 'string') return null
+  const match = value.match(/^(.+?)\s*\(Matrix:\s*.+?\)\s*$/i)
+  return match ? match[1].trim() : null
+}
+
+/**
+ * Build the sampleInfo object for a sample column
+ * clientSampleId={c}9, collectionDate={c}10, collectionTime={c}11, labSampleId={c}12, matrix from {c}13
+ * @param {Object} worksheet - XLSX worksheet
+ * @param {number} col - Column number (1-based)
+ * @returns {Object} Sample info object
+ */
+const buildAlsSampleInfo = (worksheet, col) => ({
+  clientSampleId: getCellValue(worksheet, 9, col),
+  collectionDate: getCellValue(worksheet, 10, col),
+  collectionTime: getCellValue(worksheet, 11, col),
+  labSampleId: getCellValue(worksheet, 12, col),
+  matrix: extractAlsMatrix(getCellValue(worksheet, 13, col)),
+})
+
+/**
+ * Check if a sample column has identifying data (client or lab sample id)
+ * @param {Object} sampleInfo - Sample info object
+ * @returns {boolean} True if the column holds a sample
+ */
+const hasAlsSampleData = (sampleInfo) => {
+  const hasClientId = sampleInfo.clientSampleId !== null && sampleInfo.clientSampleId !== ''
+  const hasLabId = sampleInfo.labSampleId !== null && sampleInfo.labSampleId !== ''
+  return hasClientId || hasLabId
+}
+
+/**
+ * Marker for the footer section that follows the analyte table
+ */
+const ALS_FOOTER_MARKER = 'Qualifier Legend'
+
+/**
+ * Category name substrings whose analytes should be ignored entirely
+ */
+const ALS_IGNORED_CATEGORY_MARKERS = ['extraction standards', 'cleanup standards']
+
+/**
+ * Check if a category should be ignored (contains a known ignored marker)
+ * @param {string} category - Category name
+ * @returns {boolean} True if the whole category should be skipped
+ */
+const isIgnoredAlsCategory = (category) => {
+  const lower = category.toLowerCase()
+  return ALS_IGNORED_CATEGORY_MARKERS.some((marker) => lower.includes(marker))
+}
+
+/**
+ * Check if a row is a filtration location row (to be ignored)
+ * @param {*} analyteName - Cell A value
+ * @returns {boolean} True if the row should be ignored
+ */
+const isFiltrationLocationRow = (analyteName) => {
+  return typeof analyteName === 'string' && /filtration location/i.test(analyteName)
+}
+
+/**
+ * Extract analytes from the ALS COA worksheet
+ * For each sample column (from D), builds sampleInfo and reads analyte rows after row 13
+ * @param {Object} worksheet - XLSX worksheet
+ * @returns {Array} Array of analyte objects
+ */
+const extractAlsCoaAnalytes = (worksheet) => {
+  const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
+  const lastRow = range.e.r + 1
+  const lastCol = range.e.c + 1
+  const analytes = []
+
+  for (let col = 4; col <= lastCol; col++) {
+    const sampleInfo = buildAlsSampleInfo(worksheet, col)
+    if (!hasAlsSampleData(sampleInfo)) {
+      continue
+    }
+
+    let currentCategory = ''
+    let skipCategory = false
+    for (let row = 14; row <= lastRow; row++) {
+      const analyteName = getCellValue(worksheet, row, 1)
+      if (analyteName === null || analyteName === '') {
+        continue
+      }
+
+      // Stop at the "Qualifier Legend" footer section (not part of the analyte table)
+      if (analyteName === ALS_FOOTER_MARKER) {
+        break
+      }
+
+      // Ignore filtration location (sample preparation) rows
+      if (isFiltrationLocationRow(analyteName)) {
+        continue
+      }
+
+      const category = extractAlsCategory(analyteName)
+      if (category !== null) {
+        currentCategory = category
+        skipCategory = isIgnoredAlsCategory(category)
+        continue
+      }
+
+      // Skip analytes under an ignored category (e.g., Extraction/Cleanup Standards)
+      if (skipCategory) {
+        continue
+      }
+
+      analytes.push({
+        analyte: analyteName,
+        unit: getCellValue(worksheet, row, 3),
+        category: currentCategory,
+        rl: getCellValue(worksheet, row, 2),
+        result: getCellValue(worksheet, row, col),
+        sampleInfo,
+      })
+    }
+  }
+
+  return analytes
+}
+
+/**
  * Perform QC check by comparing two analyte lists
  * @param {Object} inputs
  * @param {Array} inputs.analyteList1 - First analyte list

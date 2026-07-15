@@ -68,6 +68,43 @@ HOST = dev mode ? http://localhost : https://wirelesswater.com
 
 - return the Analyte list and the metadata
 
+
+## Parse ALS COA
+
+### Input
+
+- the ALS COA excel file *
+
+### Action
+
+- go to the "Results Summary" worksheet
+- get labReportId from A1 "Results Summary {labReportId}"
+- get clientName from B4 "..., {clientName}"
+- for each column c starting from column D
+  - create sampleInfo object:
+    - clientSampleId = {c}9
+    - labSampleId = {c}12
+    - collectionDate = {c}10
+    - collectionTime = {c}11
+    - matrix: "Sub-Matrix: {matrix}" from {c}13
+  - for each row r after row 13, create an analyte object and add it to the Analyte list:
+    - if A{r} is "Qualifier Legend", stop processing the rest of the rows (it marks the start of the footer section)
+    - ignore the row if A{r} contains "filtration location" (case insensitive)
+    - if A{r} is in the format "{category} (Matrix: {matrix})", set category as the current Category. Ignore the whole category (skip all analytes under it) if the category name contains "Extraction Standards" or "Cleanup Standards"
+    - if A{r} is not empty and the current category is not ignored, set
+      - analyte = A{r}
+      - unit = C{r}
+      - category = current category
+      - rl = B{r}
+      - result = {c}{r}
+      - sampleInfo = the sampleInfo object for column c
+- order the Analyte list by sampleInfo.labSampleId then category then analyte name
+
+### Output
+
+- return the Analyte list and the metadata
+
+
 ## Parse QC Excel
 
 ### Input
