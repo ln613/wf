@@ -334,6 +334,7 @@ export const tasks = {
       name: 'Generate Report',
       inputs: [
         { name: 'labReportId', type: 'string', label: 'Lab Report ID', required: true },
+        { name: 'labName', type: 'string', label: 'Lab Name (CARO or ALS)', required: true },
       ],
       outputs: ['success', 'labReportId', 'reportPath'],
       handler: generateReport,

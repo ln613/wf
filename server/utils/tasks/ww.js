@@ -12,6 +12,8 @@ import {
   navigate,
   waitForDownload,
   closeBrowserWindow,
+  selectFromDropdown,
+  findElements,
 } from './browser.js'
 
 /**
@@ -481,9 +483,9 @@ export const parseQcExcel = async ({ labReportId, maxWaitSeconds = 60, pollInter
 
   const workbook = readExcelFile(excelFile)
   const worksheet = getFirstWorksheet(workbook)
-  const { metadata, sampleInfos, analyteHeaderRow } =
-    extractExcelMetadataAndSampleInfo(worksheet)
-  const analytes = extractExcelAnalytes(worksheet, analyteHeaderRow, sampleInfos)
+  const firstEmptyRow = findFirstEmptyRow(worksheet)
+  const metadata = extractExcelMetadataFromRows(worksheet, firstEmptyRow)
+  const analytes = extractExcelAnalytesAllBlocks(worksheet)
   const sortedAnalytes = sortAnalytes(analytes)
 
   return { analytes: sortedAnalytes, metadata }
@@ -721,24 +723,43 @@ const findFirstEmptyRow = (worksheet) => {
 }
 
 /**
- * Find the analyte header row (Analyte, Unit, Analytical Method)
+ * Find all analyte header rows (Analyte, Unit, Analytical Method) - one per report block
  * @param {Object} worksheet - XLSX worksheet
- * @param {number} startRow - Row to start searching from
- * @returns {number} Row number of analyte header
+ * @returns {number[]} Row numbers of all analyte header rows (in order)
  */
-const findAnalyteHeaderRow = (worksheet, startRow) => {
+const findAllAnalyteHeaderRows = (worksheet) => {
   const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
+  const headerRows = []
 
-  for (let row = startRow; row <= range.e.r + 1; row++) {
+  for (let row = 1; row <= range.e.r + 1; row++) {
     const colA = getCellValue(worksheet, row, 1)
     const colB = getCellValue(worksheet, row, 2)
     const colC = getCellValue(worksheet, row, 3)
 
     if (colA === 'Analyte' && colB === 'Unit' && colC === 'Analytical Method') {
-      return row
+      headerRows.push(row)
     }
   }
-  throw new Error('Analyte header row not found')
+
+  if (headerRows.length === 0) {
+    throw new Error('Analyte header row not found')
+  }
+  return headerRows
+}
+
+/**
+ * Find the first row of a block's sample info header (the contiguous run of sample info
+ * key rows immediately above the analyte header row)
+ * @param {Object} worksheet - XLSX worksheet
+ * @param {number} analyteHeaderRow - The block's analyte header row
+ * @returns {number} Row number where the block's sample info header starts
+ */
+const findSampleHeaderStart = (worksheet, analyteHeaderRow) => {
+  let row = analyteHeaderRow - 1
+  while (row >= 1 && SAMPLE_INFO_KEYS.has(getCellValue(worksheet, row, 1))) {
+    row--
+  }
+  return row + 1
 }
 
 /**
@@ -767,6 +788,11 @@ const EXCEL_SAMPLE_INFO_KEY_MAP = {
   'Date Sampled': 'collectionDate',
   'Time Sampled (24h)': 'collectionTime',
 }
+
+/**
+ * Set of recognized sample info keys (used to locate a block's sample info header rows)
+ */
+const SAMPLE_INFO_KEYS = new Set(Object.keys(EXCEL_SAMPLE_INFO_KEY_MAP))
 
 /**
  * Map a key using the provided key map
@@ -802,13 +828,15 @@ const extractExcelMetadataFromRows = (worksheet, firstEmptyRow) => {
 }
 
 /**
- * Extract sample info from columns starting from D, before the analyte header row
+ * Extract sample info from columns starting from D for a single report block
+ * (reads the block's sample info rows, from sampleHeaderStart up to the analyte header row)
  * Key mapping: "Client Sample ID" -> clientSampleId, "Lab Sample ID" -> labSampleId, Matrix -> matrix, "Sampling Location Code" -> samplingLocationCode, "Sampling Location Name" -> samplingLocationName, "Lab Sample Comment" -> labSampleComment, "Sample Code" -> sampleCode, "Date Sampled" -> collectionDate, "Time Sampled (24h)" -> collectionTime
  * @param {Object} worksheet - XLSX worksheet
- * @param {number} analyteHeaderRow - Analyte header row number
+ * @param {number} sampleHeaderStart - First row of the block's sample info header
+ * @param {number} analyteHeaderRow - Analyte header row number (exclusive upper bound)
  * @returns {Array} Array of sample info objects with column index
  */
-const extractExcelSampleInfoFromCols = (worksheet, analyteHeaderRow) => {
+const extractExcelSampleInfoFromCols = (worksheet, sampleHeaderStart, analyteHeaderRow) => {
   const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
   const sampleInfos = []
 
@@ -816,11 +844,11 @@ const extractExcelSampleInfoFromCols = (worksheet, analyteHeaderRow) => {
     const sampleInfo = {}
     let hasData = false
 
-    for (let row = 1; row < analyteHeaderRow; row++) {
+    for (let row = sampleHeaderStart; row < analyteHeaderRow; row++) {
       const key = getCellValue(worksheet, row, 1)
       const value = getCellValue(worksheet, row, col)
 
-      if (key && value !== null) {
+      if (key && value !== null && value !== '') {
         const mappedKey = mapKey(key, EXCEL_SAMPLE_INFO_KEY_MAP)
         sampleInfo[mappedKey] = value
         hasData = true
@@ -836,32 +864,47 @@ const extractExcelSampleInfoFromCols = (worksheet, analyteHeaderRow) => {
 }
 
 /**
- * Extract metadata and sample info from Excel worksheet
+ * Extract analytes from all report blocks in the worksheet
+ * Each block has its own sample info header and its own set of samples (in the same columns)
  * @param {Object} worksheet - XLSX worksheet
- * @returns {Object} Object with metadata, sampleInfos, and analyteHeaderRow
+ * @returns {Array} Array of analyte objects from every block
  */
-const extractExcelMetadataAndSampleInfo = (worksheet) => {
-  const firstEmptyRow = findFirstEmptyRow(worksheet)
-  const metadata = extractExcelMetadataFromRows(worksheet, firstEmptyRow)
-  const analyteHeaderRow = findAnalyteHeaderRow(worksheet, firstEmptyRow)
-  const sampleInfos = extractExcelSampleInfoFromCols(worksheet, analyteHeaderRow)
+const extractExcelAnalytesAllBlocks = (worksheet) => {
+  const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
+  const lastRow = range.e.r + 1
+  const headerRows = findAllAnalyteHeaderRows(worksheet)
+  const analytes = []
 
-  return { metadata, sampleInfos, analyteHeaderRow }
+  for (let i = 0; i < headerRows.length; i++) {
+    const headerRow = headerRows[i]
+    const sampleHeaderStart = findSampleHeaderStart(worksheet, headerRow)
+    const sampleInfos = extractExcelSampleInfoFromCols(worksheet, sampleHeaderStart, headerRow)
+
+    // Block's analyte rows run until the next block's sample info header (or end of sheet)
+    const blockEnd =
+      i + 1 < headerRows.length
+        ? findSampleHeaderStart(worksheet, headerRows[i + 1]) - 1
+        : lastRow
+
+    analytes.push(...extractBlockAnalytes(worksheet, headerRow + 1, blockEnd, sampleInfos))
+  }
+
+  return analytes
 }
 
 /**
- * Extract analytes from Excel worksheet
+ * Extract analytes from a single report block's rows
  * @param {Object} worksheet - XLSX worksheet
- * @param {number} analyteHeaderRow - Analyte header row number
- * @param {Array} sampleInfos - Array of sample info objects with column index
+ * @param {number} startRow - First analyte row (after the analyte header)
+ * @param {number} endRow - Last row of the block (inclusive)
+ * @param {Array} sampleInfos - Array of sample info objects with column index for this block
  * @returns {Array} Array of analyte objects
  */
-const extractExcelAnalytes = (worksheet, analyteHeaderRow, sampleInfos) => {
-  const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
+const extractBlockAnalytes = (worksheet, startRow, endRow, sampleInfos) => {
   const analytes = []
   let currentCategory = ''
 
-  for (let row = analyteHeaderRow + 1; row <= range.e.r + 1; row++) {
+  for (let row = startRow; row <= endRow; row++) {
     const rowData = extractExcelRowData(worksheet, row, sampleInfos)
 
     if (rowData.isEmpty) {
@@ -877,11 +920,7 @@ const extractExcelAnalytes = (worksheet, analyteHeaderRow, sampleInfos) => {
       continue
     }
 
-    const rowAnalytes = createAnalytesFromRow(
-      rowData,
-      currentCategory,
-      sampleInfos,
-    )
+    const rowAnalytes = createAnalytesFromRow(rowData, currentCategory, sampleInfos)
     analytes.push(...rowAnalytes)
   }
 
@@ -1409,34 +1448,43 @@ const MONTH_MAP = {
 
 /**
  * Parse date from various formats to a normalized string
- * Supports: "yyyy-MM-dd", "dd-MMM-yy"
+ * Supports: "yyyy-MM-dd", "dd-MMM-yy" and "dd-MMM-yyyy" (2-digit year: 26 -> 2026)
  * @param {string} dateStr - Date string
  * @returns {string} Normalized date string (yyyy-MM-dd)
  */
 const normalizeDateValue = (dateStr) => {
   if (typeof dateStr !== 'string') return String(dateStr)
-  
+
   // Try yyyy-MM-dd format
   const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (isoMatch) {
     return dateStr
   }
-  
-  // Try dd-MMM-yy format (e.g., "15-Jan-26")
-  const dMyMatch = dateStr.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{2})$/)
+
+  // Try dd-MMM-yy or dd-MMM-yyyy format (e.g., "15-Jan-26", "22-May-2026")
+  const dMyMatch = dateStr.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{2}|\d{4})$/)
   if (dMyMatch) {
     const day = dMyMatch[1].padStart(2, '0')
     const monthName = dMyMatch[2].toLowerCase()
-    const year = dMyMatch[3]
+    const yearRaw = dMyMatch[3]
     const month = MONTH_MAP[monthName]
     if (month !== undefined) {
-      // Assume 20xx for 2-digit years
-      const fullYear = parseInt(year) < 50 ? `20${year}` : `19${year}`
+      const fullYear = expandYear(yearRaw)
       return `${fullYear}-${String(month + 1).padStart(2, '0')}-${day}`
     }
   }
-  
+
   return dateStr
+}
+
+/**
+ * Expand a year to 4 digits: 4-digit years are kept as-is, 2-digit years assume 20xx (< 50) or 19xx
+ * @param {string} yearRaw - Year string (2 or 4 digits)
+ * @returns {string} 4-digit year
+ */
+const expandYear = (yearRaw) => {
+  if (yearRaw.length === 4) return yearRaw
+  return parseInt(yearRaw) < 50 ? `20${yearRaw}` : `19${yearRaw}`
 }
 
 /**
@@ -1448,6 +1496,35 @@ const normalizeTimeValue = (timeStr) => {
   if (typeof timeStr !== 'string') return String(timeStr)
   // Remove timezone suffix (e.g., " MDT", " PST")
   return timeStr.replace(/\s+[A-Z]{2,4}$/, '').trim()
+}
+
+/**
+ * Check if a time value is an empty/placeholder time ("00:00", "0:00", 0)
+ * @param {*} value - Time value
+ * @returns {boolean} True if it represents no time
+ */
+const isEmptyTimeValue = (value) => {
+  if (value === 0 || value === '0') return true
+  if (typeof value !== 'string') return false
+  const t = normalizeTimeValue(value)
+  return t === '00:00' || t === '0:00'
+}
+
+/**
+ * Canonicalize values that should be treated as missing during comparison
+ * (e.g., collectionTime "00:00" is equivalent to a blank/missing time)
+ * @param {*} value - Value to canonicalize
+ * @param {string} fieldPath - Field path
+ * @returns {*} null if the value should be treated as missing, otherwise the value unchanged
+ */
+const canonicalizeMissingForComparison = (value, fieldPath) => {
+  if (
+    (fieldPath === 'sampleInfo.collectionTime' || fieldPath === 'collectionTime') &&
+    isEmptyTimeValue(value)
+  ) {
+    return null
+  }
+  return value
 }
 
 /**
@@ -1513,8 +1590,12 @@ const compareValues = (value1, value2, fieldPath, context = {}) => {
 
   const differences = []
 
-  if (value1 === null || value1 === undefined) {
-    if (value2 !== null && value2 !== undefined) {
+  // Treat placeholder values (e.g., collectionTime "00:00") as missing so they equal a blank
+  const v1 = canonicalizeMissingForComparison(value1, fieldPath)
+  const v2 = canonicalizeMissingForComparison(value2, fieldPath)
+
+  if (v1 === null || v1 === undefined) {
+    if (v2 !== null && v2 !== undefined) {
       differences.push({
         type: 'missing_in_list1',
         field: fieldPath,
@@ -1524,7 +1605,7 @@ const compareValues = (value1, value2, fieldPath, context = {}) => {
     return differences
   }
 
-  if (value2 === null || value2 === undefined) {
+  if (v2 === null || v2 === undefined) {
     differences.push({
       type: 'missing_in_list2',
       field: fieldPath,
@@ -1533,13 +1614,13 @@ const compareValues = (value1, value2, fieldPath, context = {}) => {
     return differences
   }
 
-  if (typeof value1 === 'object' && typeof value2 === 'object') {
-    return compareObjects(value1, value2, fieldPath, context)
+  if (typeof v1 === 'object' && typeof v2 === 'object') {
+    return compareObjects(v1, v2, fieldPath, context)
   }
 
   // Normalize values before comparison
-  const normalizedValue1 = normalizeValueForComparison(value1, fieldPath)
-  const normalizedValue2 = normalizeValueForComparison(value2, fieldPath)
+  const normalizedValue1 = normalizeValueForComparison(v1, fieldPath)
+  const normalizedValue2 = normalizeValueForComparison(v2, fieldPath)
 
   if (String(normalizedValue1) !== String(normalizedValue2)) {
     differences.push({
@@ -1689,8 +1770,6 @@ const findCrossListEquivalentKey = (analyte, targetMap, direction = 'forward') =
  * @returns {Array} Array of difference objects
  */
 const compareAnalyteLists = (list1, list2) => {
-  console.log(list1)
-  console.log(list2)
   const map1 = buildAnalyteMap(list1)
   const map2 = buildAnalyteMap(list2)
   const allKeys = new Set([...map1.keys(), ...map2.keys()])
@@ -1755,19 +1834,101 @@ const compareAnalyteLists = (list1, list2) => {
  * Generate report by logging into WirelessWater and navigating to the lab report
  * @param {Object} inputs
  * @param {string} inputs.labReportId - Lab report ID (required)
+ * @param {string} inputs.labName - Lab name, "CARO" or "ALS" (required)
  * @returns {Object} Result with success status, labReportId, and reportPath
  */
-export const generateReport = async ({ labReportId }) => {
+export const generateReport = async ({ labReportId, labName }) => {
   validateLabReportIdInput(labReportId)
+  validateLabNameInput(labName)
 
   const connectionId = await loginToWirelessWater()
   await navigateToLabArchive(connectionId)
-  await searchForLabReport(connectionId, labReportId)
-  await openLabReportSummary(connectionId)
+  await selectLabAndOpenSummary(connectionId, labName, labReportId)
   const reportPath = await waitForDownloadToComplete(connectionId, labReportId)
   await closeBrowser(connectionId)
 
   return { success: true, labReportId, reportPath }
+}
+
+/**
+ * Validate lab name input
+ * @param {string} labName - Lab name
+ */
+const validateLabNameInput = (labName) => {
+  if (!labName) {
+    throw new Error('Lab name is required')
+  }
+}
+
+/**
+ * Client dropdown options for each lab name
+ * CARO has a single client; ALS is tried across multiple locations until one succeeds
+ */
+const LAB_CLIENT_OPTIONS = {
+  CARO: ['CARO Analytical Services'],
+  ALS: ['ALS Burnaby', 'ALS Calgary', 'ALS Edmonton'],
+}
+
+/**
+ * Get the client dropdown options for a lab name
+ * @param {string} labName - Lab name ("CARO" or "ALS")
+ * @returns {string[]} Client option(s) to try in the dropdown
+ */
+const getLabClientOptions = (labName) => {
+  const options = LAB_CLIENT_OPTIONS[String(labName).toUpperCase()]
+  if (!options) {
+    throw new Error(`Unknown lab name: ${labName}`)
+  }
+  return options
+}
+
+/**
+ * Select the lab client, search for the report, and open its summary view
+ * For ALS, each candidate location is tried until the report is found
+ * @param {string} connectionId - Browser connection ID
+ * @param {string} labName - Lab name ("CARO" or "ALS")
+ * @param {string} labReportId - Lab report ID
+ */
+const selectLabAndOpenSummary = async (connectionId, labName, labReportId) => {
+  const clientOptions = getLabClientOptions(labName)
+
+  for (const client of clientOptions) {
+    await selectClient(connectionId, client)
+    await searchForLabReport(connectionId, labReportId)
+
+    if (await hasSummaryLink(connectionId)) {
+      await openLabReportSummary(connectionId)
+      return
+    }
+  }
+
+  throw new Error(`Lab report '${labReportId}' not found for lab '${labName}'`)
+}
+
+/**
+ * Select a client from the Clients dropdown
+ * @param {string} connectionId - Browser connection ID
+ * @param {string} client - Client name to select
+ */
+const selectClient = async (connectionId, client) => {
+  await selectFromDropdown({
+    connectionId,
+    selector: '#Clients',
+    value: client,
+  })
+}
+
+/**
+ * Check if the lab report summary link is present on the page
+ * @param {string} connectionId - Browser connection ID
+ * @returns {boolean} True if the summary link exists
+ */
+const hasSummaryLink = async (connectionId) => {
+  const { found } = await findElements({
+    connectionId,
+    selector: SUMMARY_LINK_SELECTOR,
+  })
+  return found
 }
 
 /**
@@ -1872,13 +2033,18 @@ const searchForLabReport = async (connectionId, labReportId) => {
 }
 
 /**
+ * CSS selector for the lab report summary view link
+ */
+const SUMMARY_LINK_SELECTOR = 'a[href^="/LabArchive/SummaryView/"]'
+
+/**
  * Open the lab report summary view
  * @param {string} connectionId - Browser connection ID
  */
 const openLabReportSummary = async (connectionId) => {
   await clickElement({
     connectionId,
-    selector: 'a[href^="/LabArchive/SummaryView/"]',
+    selector: SUMMARY_LINK_SELECTOR,
   })
 }
 

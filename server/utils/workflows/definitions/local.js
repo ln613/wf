@@ -1,4 +1,6 @@
 import {
+  resolveLabBranch,
+  formatQcDifferences,
   getMp4Files,
   computeKsCutTimes,
   getFilesWithFolderName,
@@ -19,11 +21,21 @@ export const localWorkflows = {
       },
       compositeCondition: {
         type: 'all', // Require all conditions to be met
-        matchKey: 'labReportId', // Key to match conditions together
+        matchKey: 'labReportId', // Key to match conditions together (work order == lab report id)
+        // Additional cross-condition constraint: lab name from condition 2 (labReportUpload)
+        // must start with the lab token (CARO/ALS) from condition 1 (workOrder)
+        matchConditions: [
+          {
+            type: 'startsWith',
+            left: { from: 'labReportUpload.email.subject', pattern: 'Lab:\\s*([^,]+)' },
+            right: { from: 'workOrder.email.subject', pattern: '(CARO|ALS)' },
+          },
+        ],
         conditions: [
           {
             id: 'workOrder',
-            subjectPattern: 'CARO.*Work Order.*Project',
+            // CARO: "... CARO ... Work Order ... Project ...", ALS: "... for ALS Workorder : {wo} | Your Reference: {project}"
+            subjectPattern: '(CARO.*Work Order.*Project|ALS Workorder\\s*:.*Your Reference)',
             subjectExclude: 'login',
             attachments: {
               minCount: 2,
@@ -31,14 +43,7 @@ export const localWorkflows = {
             },
             extractLabReportId: {
               from: 'email.subject',
-              pattern: 'Work Order ([A-Za-z0-9]+)',
-            },
-            inputMapping: {
-              pdfPath: {
-                from: 'email.attachments',
-                filter: { extension: '.pdf' },
-                property: 'path',
-              },
+              pattern: 'Work ?[Oo]rder\\s*:?\\s*([A-Za-z0-9-]+)',
             },
           },
           {
@@ -52,33 +57,65 @@ export const localWorkflows = {
         ],
       },
       inputMapping: {
+        lab: {
+          from: 'workOrder.email.subject',
+          pattern: '(CARO|ALS)',
+        },
         pdfPath: {
           from: 'workOrder.email.attachments',
           filter: { extension: '.pdf' },
+          property: 'path',
+        },
+        excelPath: {
+          from: 'workOrder.email.attachments',
+          filter: { extension: '.xlsx' },
           property: 'path',
         },
       },
     },
     tasks: [
       {
-        taskName: 'PDF to Htmls',
-        inputs: {
-          pdfPath: '{{pdfPath}}',
-        },
-        outputAs: 'pdfResult',
+        handler: resolveLabBranch,
       },
       {
-        taskName: 'Parse All QC Htmls',
-        inputs: {
-          folder: '{{pdfResult.folder}}',
-          filterFn: (content) => content.includes('<p') && content.includes('<b>TEST RESULTS</b>'),
-        },
-        outputAs: 'H',
+        // CARO branch: PDF -> HTML -> parse QC htmls
+        condition: '{{isCaro}}',
+        tasks: [
+          {
+            taskName: 'PDF to Htmls',
+            inputs: {
+              pdfPath: '{{pdfPath}}',
+            },
+            outputAs: 'pdfResult',
+          },
+          {
+            taskName: 'Parse All QC Htmls',
+            inputs: {
+              folder: '{{pdfResult.folder}}',
+              filterFn: (content) => content.includes('<p') && content.includes('<b>TEST RESULTS</b>'),
+            },
+            outputAs: 'H',
+          },
+        ],
+      },
+      {
+        // ALS branch: parse the COA excel directly
+        condition: '{{isAls}}',
+        tasks: [
+          {
+            taskName: 'Parse ALS COA',
+            inputs: {
+              filePath: '{{excelPath}}',
+            },
+            outputAs: 'H',
+          },
+        ],
       },
       {
         taskName: 'Generate Report',
         inputs: {
           labReportId: '{{H.metadata.labReportId}}',
+          labName: '{{lab}}',
         },
         outputAs: 'reportResult',
       },
@@ -90,7 +127,7 @@ export const localWorkflows = {
         outputAs: 'E',
       },
       {
-        condition: '{{E !== null}}',
+        condition: '{{E}}',
         taskName: 'QC Check',
         inputs: {
           analyteList1: '{{H.analytes}}',
@@ -99,12 +136,16 @@ export const localWorkflows = {
         outputAs: 'qcResult',
       },
       {
+        // Format differences grouped by type for the email body
+        handler: formatQcDifferences,
+      },
+      {
         taskName: 'Send Email',
         inputs: {
           senderAccount: 'GMAIL_1',
           receiverAccount: 'GMAIL_1',
           subject: 'QC result for {{H.metadata.labReportId}}',
-          body: 'QC Check Result:\n\nHas Differences: {{qcResult.hasDifferences}}\n\nDifferences:\n{{qcResult.differences}}',
+          body: 'QC Check Result for {{H.metadata.labReportId}}\n\nHas Differences: {{qcResult.hasDifferences}}\n\n{{differencesSummary}}',
           attachments: ['{{pdfPath}}', '{{reportResult.reportPath}}'],
         },
       },

@@ -9,61 +9,75 @@ const activeWatchers = new Map()
 
 /**
  * Start watching an email account for new emails
+ * Records a baseline UID on the first check, then emits a 'newEmail' event for every
+ * email whose UID is greater than the last seen UID (in ascending order)
  * @param {string} taskId - Unique task identifier
  * @param {Object} config - Configuration with emailAccount and pollingInterval
  * @param {EventEmitter} eventEmitter - Event emitter to emit events
  */
 export const watchEmail = (taskId, config, eventEmitter) => {
   validateWatchEmailConfig(config)
-  
+
   const credentials = getGmailAppPasswordCredentials(config.emailAccount)
   const pollingInterval = (config.pollingInterval || 60) * 1000 // Convert to ms
-  
+
   console.log(`[WatchEmail] Starting watcher for ${credentials.email} with ${pollingInterval / 1000}s interval`)
-  
-  // Track the last seen email UID
+
+  // Track the last seen email UID (null until the baseline is recorded)
   let lastSeenUid = null
-  let isFirstCheck = true
-  
+
   const checkForNewEmails = async () => {
     try {
       console.log('check for new email...')
-      const result = await fetchLatestEmailInfo(credentials)
-      if (result) {
-        const { body, ...emailWithoutBody } = result.email || {}
-        console.log({ uid: result.uid, email: emailWithoutBody })
-      }
-      
-      if (result && result.uid) {
-        if (isFirstCheck) {
-          // On first check, just record the current UID without emitting
-          lastSeenUid = result.uid
-          isFirstCheck = false
-          console.log(`[WatchEmail] Initial UID recorded: ${lastSeenUid}`)
-        } else if (lastSeenUid !== result.uid) {
-          // New email detected
-          console.log(`[WatchEmail] New email detected! UID: ${result.uid}`)
-          lastSeenUid = result.uid
-          
-          // Emit the newEmail event
-          eventEmitter.emit('newEmail', {
-            taskId,
-            emailAccount: config.emailAccount,
-            email: result.email,
-          })
+
+      // First check: record the baseline UID. Normally this is the current latest UID
+      // (nothing existing is replayed). If backfill is enabled via {ACCOUNT}_WATCH_BACKFILL=N,
+      // the baseline is moved back N messages so the last N inbox emails are (re)processed.
+      if (lastSeenUid === null) {
+        const latestUid = await fetchLatestUid(credentials)
+        if (latestUid === null) {
+          console.log('[WatchEmail] Inbox is empty, will retry on next poll')
+          return
         }
+
+        const backfill = getBackfillCount(config.emailAccount)
+        if (backfill > 0) {
+          lastSeenUid = Math.max(0, latestUid - backfill)
+          console.log(`[WatchEmail] Backfill enabled: baseline set to ${lastSeenUid} (latest ${latestUid}, back ${backfill})`)
+          // Fall through to process the backfilled range immediately
+        } else {
+          lastSeenUid = latestUid
+          console.log(`[WatchEmail] Initial UID recorded: ${lastSeenUid}`)
+          return
+        }
+      }
+
+      // Subsequent checks: fetch every email newer than the baseline, oldest first
+      const newEmails = await fetchEmailsSinceUid(credentials, lastSeenUid)
+
+      for (const { uid, email } of newEmails) {
+        lastSeenUid = Math.max(lastSeenUid, uid)
+        const { body, ...emailWithoutBody } = email
+        console.log(`[WatchEmail] New email detected! UID: ${uid}`)
+        console.log({ uid, email: emailWithoutBody })
+
+        await emitAndWait(eventEmitter, 'newEmail', {
+          taskId,
+          emailAccount: config.emailAccount,
+          email,
+        })
       }
     } catch (error) {
       console.error(`[WatchEmail] Error checking emails:`, error.message)
     }
   }
-  
+
   // Initial check
   checkForNewEmails()
-  
+
   // Set up polling interval
   const intervalId = setInterval(checkForNewEmails, pollingInterval)
-  
+
   // Store the watcher info
   activeWatchers.set(taskId, {
     intervalId,
@@ -103,6 +117,18 @@ const validateWatchEmailConfig = (config) => {
 }
 
 /**
+ * Get the backfill count for an account from {ACCOUNT}_WATCH_BACKFILL (0 = disabled, default)
+ * When > 0, the watcher moves its startup baseline back this many messages so recent
+ * inbox emails are (re)processed on startup (useful for testing)
+ * @param {string} accountEnvVar - Environment variable prefix (e.g., 'GMAIL_1')
+ * @returns {number} Backfill count (0 if unset or invalid)
+ */
+const getBackfillCount = (accountEnvVar) => {
+  const n = parseInt(process.env[`${accountEnvVar}_WATCH_BACKFILL`], 10)
+  return Number.isFinite(n) && n > 0 ? n : 0
+}
+
+/**
  * Get Gmail credentials for app password authentication
  * @param {string} accountEnvVar - Environment variable prefix
  * @returns {Object} Credentials with email and appPassword
@@ -118,26 +144,43 @@ const getGmailAppPasswordCredentials = (accountEnvVar) => {
 }
 
 /**
- * Fetch the latest email info including UID
- * @param {Object} credentials - Gmail credentials
- * @returns {Object} Email info with uid and email data
+ * Emit an event and await all (possibly async) listeners sequentially
+ * Ensures composite-trigger conditions arriving in the same poll are processed in order
+ * (e.g., the first condition's pending trigger is saved before the second is checked)
+ * @param {EventEmitter} eventEmitter - Event emitter
+ * @param {string} eventName - Event name
+ * @param {Object} payload - Event payload
  */
-const fetchLatestEmailInfo = async (credentials) => {
+const emitAndWait = async (eventEmitter, eventName, payload) => {
+  for (const listener of eventEmitter.listeners(eventName)) {
+    try {
+      await listener(payload)
+    } catch (error) {
+      console.error(`[WatchEmail] Listener error for '${eventName}':`, error.message)
+    }
+  }
+}
+
+/**
+ * Run a fetch worker within a managed IMAP connection (handles connect, timeout, cleanup)
+ * @param {Object} credentials - Gmail credentials
+ * @param {Function} worker - (imap, resolve, reject) => void, invoked once the connection is ready
+ * @returns {Promise<*>} Whatever the worker resolves with
+ */
+const runWithImap = (credentials, worker) => {
   return new Promise((resolve, reject) => {
     const CONNECTION_TIMEOUT = 30000 // 30 seconds timeout
     let timeoutId = null
     let isResolved = false
 
-    const cleanup = (imap) => {
+    const settle = (fn, value) => {
+      if (isResolved) return
+      isResolved = true
       if (timeoutId) {
         clearTimeout(timeoutId)
         timeoutId = null
       }
-      try {
-        imap.end()
-      } catch (e) {
-        // Ignore cleanup errors
-      }
+      fn(value)
     }
 
     const imap = new Imap({
@@ -152,39 +195,36 @@ const fetchLatestEmailInfo = async (credentials) => {
       },
       connTimeout: CONNECTION_TIMEOUT,
       authTimeout: CONNECTION_TIMEOUT,
-      // debug: (msg) => console.log('[IMAP Debug]', msg),
     })
 
-    // Set up connection timeout
     timeoutId = setTimeout(() => {
-      if (!isResolved) {
-        isResolved = true
-        console.error('[WatchEmail] IMAP connection timeout after 30s')
-        cleanup(imap)
-        reject(new Error('IMAP connection timeout'))
+      console.error('[WatchEmail] IMAP connection timeout after 30s')
+      try {
+        imap.end()
+      } catch (e) {
+        // Ignore cleanup errors
       }
+      settle(reject, new Error('IMAP connection timeout'))
     }, CONNECTION_TIMEOUT)
 
     imap.once('ready', () => {
       if (isResolved) return
       console.log('[WatchEmail] IMAP connection ready')
-      clearTimeout(timeoutId)
-      timeoutId = null
-      openInboxAndFetchLatestWithUid(imap, (result) => {
-        isResolved = true
-        resolve(result)
-      }, (err) => {
-        isResolved = true
-        reject(err)
-      })
+      worker(
+        imap,
+        (value) => settle(resolve, value),
+        (err) => settle(reject, err),
+      )
     })
 
     imap.once('error', (err) => {
-      if (isResolved) return
-      isResolved = true
       console.error('[WatchEmail] IMAP error:', err.message)
-      cleanup(imap)
-      reject(err)
+      try {
+        imap.end()
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+      settle(reject, err)
     })
 
     imap.once('end', () => {
@@ -193,14 +233,9 @@ const fetchLatestEmailInfo = async (credentials) => {
 
     imap.once('close', (hadError) => {
       console.log(`[WatchEmail] IMAP connection closed${hadError ? ' with error' : ''}`)
-      if (!isResolved) {
-        isResolved = true
-        cleanup(imap)
-        reject(new Error('IMAP connection closed unexpectedly'))
-      }
+      settle(reject, new Error('IMAP connection closed unexpectedly'))
     })
 
-    // Listen for BYE messages (quota exceeded, etc.)
     imap.on('alert', (message) => {
       console.warn('[WatchEmail] IMAP alert:', message)
     })
@@ -211,74 +246,145 @@ const fetchLatestEmailInfo = async (credentials) => {
 }
 
 /**
- * Open inbox and fetch the latest email with UID
- * @param {Object} imap - IMAP connection
- * @param {Function} resolve - Promise resolve function
- * @param {Function} reject - Promise reject function
+ * Fetch the UID of the latest email in the inbox (used to record the baseline)
+ * @param {Object} credentials - Gmail credentials
+ * @returns {Promise<number|null>} Latest UID or null if the inbox is empty
  */
-const openInboxAndFetchLatestWithUid = (imap, resolve, reject) => {
-  imap.openBox('INBOX', true, (err, box) => {
-    if (err) {
-      imap.end()
-      return reject(err)
-    }
+const fetchLatestUid = (credentials) => {
+  return runWithImap(credentials, (imap, resolve, reject) => {
+    imap.openBox('INBOX', true, (err, box) => {
+      if (err) {
+        imap.end()
+        return reject(err)
+      }
 
-    if (box.messages.total === 0) {
-      imap.end()
-      return resolve(null)
-    }
+      if (box.messages.total === 0) {
+        imap.end()
+        return resolve(null)
+      }
 
-    // Fetch the latest message
-    const fetchRange = `${box.messages.total}:${box.messages.total}`
-    const fetch = imap.seq.fetch(fetchRange, {
-      bodies: '',
-      struct: true,
-    })
-
-    let emailUid = null
-
-    fetch.on('message', (msg, seqno) => {
-      let buffer = ''
-
-      msg.on('attributes', (attrs) => {
-        emailUid = attrs.uid
+      const fetch = imap.seq.fetch(`${box.messages.total}:${box.messages.total}`, {
+        bodies: '',
+        struct: true,
       })
 
-      msg.on('body', (stream) => {
-        stream.on('data', (chunk) => {
-          buffer += chunk.toString('utf8')
+      let uid = null
+
+      fetch.on('message', (msg) => {
+        msg.on('attributes', (attrs) => {
+          uid = attrs.uid
         })
       })
 
-      msg.once('end', async () => {
-        try {
-          const parsed = await simpleParser(buffer)
-          
-          // Save attachments to temp folder
-          const attachments = await saveAttachments(parsed.attachments || [])
-          
-          const email = {
-            sender: parsed.from?.text || null,
-            date: parsed.date?.toISOString() || null,
-            subject: parsed.subject || null,
-            body: parsed.text || parsed.html || null,
-            attachments,
-          }
+      fetch.once('error', (fetchErr) => {
+        imap.end()
+        reject(fetchErr)
+      })
 
-          imap.end()
-          resolve({ uid: emailUid, email })
-        } catch (parseErr) {
-          imap.end()
-          reject(parseErr)
-        }
+      fetch.once('end', () => {
+        imap.end()
+        resolve(uid)
+      })
+    })
+  })
+}
+
+/**
+ * Fetch all emails with a UID greater than sinceUid, parsed and sorted ascending by UID
+ * @param {Object} credentials - Gmail credentials
+ * @param {number} sinceUid - Only emails with UID greater than this are returned
+ * @returns {Promise<Array>} Array of { uid, email } sorted ascending by UID
+ */
+const fetchEmailsSinceUid = (credentials, sinceUid) => {
+  return runWithImap(credentials, (imap, resolve, reject) => {
+    imap.openBox('INBOX', true, (err, box) => {
+      if (err) {
+        imap.end()
+        return reject(err)
+      }
+
+      if (box.messages.total === 0) {
+        imap.end()
+        return resolve([])
+      }
+
+      // UID fetch of the open-ended range. Note: IMAP's "N:*" always returns at least the
+      // highest-UID message even when its UID < N, so results are filtered by uid > sinceUid.
+      const fetch = imap.fetch(`${sinceUid + 1}:*`, {
+        bodies: '',
+        struct: true,
+      })
+
+      const pending = []
+
+      fetch.on('message', (msg) => {
+        pending.push(parseFetchedMessage(msg))
+      })
+
+      fetch.once('error', (fetchErr) => {
+        imap.end()
+        reject(fetchErr)
+      })
+
+      fetch.once('end', async () => {
+        const parsed = await Promise.all(pending)
+        imap.end()
+        const newEmails = parsed
+          .filter((item) => item && item.uid > sinceUid)
+          .sort((a, b) => a.uid - b.uid)
+        resolve(newEmails)
+      })
+    })
+  })
+}
+
+/**
+ * Parse a single fetched IMAP message into { uid, email }
+ * @param {Object} msg - IMAP message stream
+ * @returns {Promise<Object|null>} Parsed { uid, email } or null on parse failure
+ */
+const parseFetchedMessage = (msg) => {
+  return new Promise((resolve) => {
+    let buffer = ''
+    let uid = null
+
+    msg.on('attributes', (attrs) => {
+      uid = attrs.uid
+    })
+
+    msg.on('body', (stream) => {
+      stream.on('data', (chunk) => {
+        buffer += chunk.toString('utf8')
       })
     })
 
-    fetch.once('error', (err) => {
-      imap.end()
-      reject(err)
+    msg.once('end', async () => {
+      try {
+        const parsed = await simpleParser(buffer)
+        const email = await buildEmailFromParsed(parsed)
+        resolve({ uid, email })
+      } catch (parseErr) {
+        console.error('[WatchEmail] Failed to parse email:', parseErr.message)
+        resolve(null)
+      }
     })
   })
+}
+
+/**
+ * Build the email object (with saved attachments) from a mailparser result
+ * @param {Object} parsed - mailparser parsed email
+ * @returns {Promise<Object>} Email object with sender, date, subject, body, attachments
+ */
+const buildEmailFromParsed = async (parsed) => {
+  const attachments = await saveAttachments(parsed.attachments || [])
+  return {
+    sender: parsed.from?.text || null,
+    date: parsed.date?.toISOString() || null,
+    subject: parsed.subject || null,
+    body: parsed.text || parsed.html || null,
+    attachments,
+  }
 }
 
 /**
@@ -300,10 +406,10 @@ const saveAttachments = async (attachments) => {
   for (const attachment of attachments) {
     const filename = attachment.filename || `attachment_${savedAttachments.length + 1}`
     const filePath = path.join(tempDir, filename)
-    
+
     // Write attachment content to file
     await fs.writeFile(filePath, attachment.content)
-    
+
     savedAttachments.push({
       filename,
       path: filePath,

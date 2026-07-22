@@ -12,7 +12,9 @@
 
 condition 1:
 
-- the subject is like "... CARO ... Work Order ... Project ...", and does not contain the word "login"
+- the subject is like one of the follwoing:
+  - for lab CARO: "... CARO ... Work Order ... Project ...", and does not contain the word "login"
+  - for lab ALS: "... for ALS Workorder : {work order} | Your Reference: {project}"
 - there are 2 attachments, 1 excel file and 1 pdf
 
 condition 2:
@@ -21,15 +23,19 @@ condition 2:
 
 #### WF Input
 
-- the path of the pdf file
+- lab name
+- the path of the pdf or excel file
 
 ### Tasks
 
-- only continue when both conditions are triggered (work order matches lab report id). If one is triggered first, save the info to db. And everytime a condition is triggered, check the db to see if the other one is already triggered
-- PDF to Htmls
-- Parse All QC Htmls (as H):
-  - in the html folder
-  - contains a <p> with content <b>TEST RESULTS</b>
+- only continue when both conditions are triggered (lab name from condition 2 starts with  lab name from condition 1, work order matches lab report id). If one is triggered first, save the info to db. And everytime a condition is triggered, check the db to see if the other one is already triggered
+- for CARO:
+  - PDF to Htmls
+  - Parse All QC Htmls (as H):
+    - in the html folder
+    - contains a <p> with content <b>TEST RESULTS</b>
+- for ALS:
+  - Parse ALS COA
 - Generate report with H.metadata.labReportId
 - Parse QC Excel with H.metadata.labReportId (as E)
 - if E is not null, perform QC check with H.analytes and E.analytes
@@ -37,7 +43,9 @@ condition 2:
   - sender: GMAIL_1
   - receiver: GMAIL_1
   - subject: QC result for {H.metadata.labReportId}
-  - body: {the QC check result}
+  - body: the QC check differences, grouped by difference type:
+    - "Name Mismatch": pairs of missing analytes - a missing_in_list2 item paired with a missing_in_list1 item that shares the same lab sample id and category (they likely refer to the same analyte under different names). Show one entry per pair with an additional field for the possible match from the other list
+    - "Different {field}": the field-level mismatches (original type mismatch), grouped by field, where field is a friendly name (Result, Date, Time, Client Sample ID, Unit, ...)
   - attachment: the pdf file, the generated report
 
 ## HTML Extract

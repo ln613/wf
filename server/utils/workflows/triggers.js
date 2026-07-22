@@ -191,7 +191,7 @@ const createCompositeEventHandler = (workflowKey, workflow, compositeCondition, 
       return
     }
 
-    const { type, matchKey, conditions } = compositeCondition
+    const { type, matchKey, conditions, matchConditions } = compositeCondition
 
     // Find which condition this event matches
     const matchedCondition = findMatchingCondition(conditions, eventData)
@@ -228,16 +228,23 @@ const createCompositeEventHandler = (workflowKey, workflow, compositeCondition, 
           : uniqueTriggeredIds.length > 0
 
       if (allMet) {
-        console.log(`[Triggers] All conditions met for workflow '${workflow.name}', executing...`)
-
-        // Remove the pending trigger
-        await removePendingTrigger(workflowKey, matchKey, matchKeyValue)
-
         // Combine event data from all conditions
         const combinedEventData = {
           ...pendingTrigger.eventData,
           [matchedCondition.id]: eventData,
         }
+
+        // Validate cross-condition constraints (e.g., lab name matches lab token)
+        if (!evaluateMatchConditions(matchConditions, combinedEventData)) {
+          console.log(`[Triggers] Match conditions not satisfied for workflow '${workflow.name}', keeping pending`)
+          await updatePendingTrigger(workflowKey, matchKey, matchKeyValue, matchedCondition.id, eventData)
+          return
+        }
+
+        console.log(`[Triggers] All conditions met for workflow '${workflow.name}', executing...`)
+
+        // Remove the pending trigger
+        await removePendingTrigger(workflowKey, matchKey, matchKeyValue)
 
         // Map combined event data to workflow inputs
         const workflowInputs = mapEventDataToInputs(combinedEventData, inputMapping)
@@ -281,6 +288,49 @@ const findMatchingCondition = (conditions, eventData) => {
 }
 
 /**
+ * Extract a field value from a source object based on a field config
+ * Supports: from (dot path), filter (array by extension), property (object property), pattern (regex capture)
+ * @param {Object} source - Source object (event data or combined event data)
+ * @param {Object} config - Field config with { from, filter, property, pattern }
+ * @returns {*} Extracted value (regex capture group 1 when pattern matches, otherwise the raw value)
+ */
+const extractField = (source, config) => {
+  if (!config || !config.from) {
+    return undefined
+  }
+
+  const { from, filter, property, pattern } = config
+
+  let value = getValueByPath(source, from)
+
+  // Apply filter if specified (for arrays)
+  if (filter && Array.isArray(value)) {
+    value = value.find((item) => {
+      if (filter.extension) {
+        const filename = item.filename?.toLowerCase() || ''
+        return filename.endsWith(filter.extension.toLowerCase())
+      }
+      return true
+    })
+  }
+
+  // Get property if specified
+  if (property && value && typeof value === 'object') {
+    value = value[property]
+  }
+
+  // Apply regex pattern to extract value
+  if (pattern && typeof value === 'string') {
+    const match = value.match(new RegExp(pattern))
+    if (match) {
+      return match[1] !== undefined ? match[1] : match[0]
+    }
+  }
+
+  return value
+}
+
+/**
  * Extract the match key value from event data based on condition configuration
  * @param {Object} condition - Condition that matched
  * @param {Object} eventData - Event data
@@ -291,37 +341,40 @@ const extractMatchKeyValue = (condition, eventData) => {
     return null
   }
 
-  const { from, pattern, filter, property } = condition.extractLabReportId
+  const value = extractField(eventData, condition.extractLabReportId)
+  return typeof value === 'string' ? value : null
+}
 
-  // Get the source value
-  let sourceValue = getValueByPath(eventData, from)
-
-  // Apply filter if specified (for arrays)
-  if (filter && Array.isArray(sourceValue)) {
-    sourceValue = sourceValue.find((item) => {
-      if (filter.extension) {
-        const filename = item.filename?.toLowerCase() || ''
-        return filename.endsWith(filter.extension.toLowerCase())
-      }
-      return true
-    })
+/**
+ * Evaluate cross-condition match constraints (e.g., lab name from one condition starts with a token from another)
+ * @param {Array} matchConditions - Array of { type, left, right } constraints
+ * @param {Object} combinedEventData - Event data keyed by condition id
+ * @returns {boolean} True if all constraints are satisfied (or none defined)
+ */
+const evaluateMatchConditions = (matchConditions, combinedEventData) => {
+  if (!matchConditions || matchConditions.length === 0) {
+    return true
   }
 
-  // Get property if specified
-  if (property && sourceValue && typeof sourceValue === 'object') {
-    sourceValue = sourceValue[property]
-  }
+  return matchConditions.every((mc) => {
+    const leftValue = extractField(combinedEventData, mc.left)
+    const rightValue = extractField(combinedEventData, mc.right)
 
-  // Apply regex pattern to extract value
-  if (pattern && typeof sourceValue === 'string') {
-    const regex = new RegExp(pattern)
-    const match = sourceValue.match(regex)
-    if (match && match[1]) {
-      return match[1]
+    if (leftValue == null || rightValue == null) {
+      return false
     }
-  }
 
-  return typeof sourceValue === 'string' ? sourceValue : null
+    const left = String(leftValue).trim().toLowerCase()
+    const right = String(rightValue).trim().toLowerCase()
+
+    if (mc.type === 'startsWith') {
+      return left.startsWith(right)
+    }
+    if (mc.type === 'equals') {
+      return left === right
+    }
+    return false
+  })
 }
 
 /**
@@ -516,38 +569,19 @@ const checkFileCondition = (condition, eventData) => {
  */
 const mapEventDataToInputs = (eventData, inputMapping) => {
   if (!inputMapping) return {}
-  
+
   const inputs = {}
-  const { email } = eventData
-  
+
   for (const [inputName, mapping] of Object.entries(inputMapping)) {
     if (typeof mapping === 'string') {
       // Simple path mapping like 'email.attachments[0].path'
       inputs[inputName] = getValueByPath(eventData, mapping)
     } else if (typeof mapping === 'object' && mapping.from) {
-      // Complex mapping with transformation
-      let value = getValueByPath(eventData, mapping.from)
-      
-      // Apply filter if specified
-      if (mapping.filter && Array.isArray(value)) {
-        value = value.find((item) => {
-          if (mapping.filter.extension) {
-            const filename = item.filename?.toLowerCase() || ''
-            return filename.endsWith(mapping.filter.extension.toLowerCase())
-          }
-          return true
-        })
-      }
-      
-      // Get specific property if specified
-      if (mapping.property && value) {
-        value = value[mapping.property]
-      }
-      
-      inputs[inputName] = value
+      // Complex mapping with transformation (filter, property, pattern)
+      inputs[inputName] = extractField(eventData, mapping)
     }
   }
-  
+
   return inputs
 }
 

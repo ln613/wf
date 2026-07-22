@@ -5,6 +5,7 @@
 ### Input
 
 - lab report id *
+- lab name *
 
 ### Action
 
@@ -14,6 +15,9 @@
 - Click ('button.filter')
 - Wait 3 seconds
 - Navigate to HOST/labarchive
+- Select from dropdown ('#Clients', LAB)
+  - if lab name = "CARO", LAB = "CARO Analytical Services"
+  - if lab name = "ALS", try LAB = "ALS Burnaby"/"ALS Calgary"/"ALS Edmonton" for the follwoing steps one by one until the search is successful (select the lab, search for the lab report id, find the element 'a[href^="/LabArchive/SummaryView/"]', if not found, try the next lab)
 - Enter text ('#txtSearch1', lab report id)
 - Click ('a[title="Search"]')
 - Wait 3 seconds
@@ -117,13 +121,14 @@ HOST = dev mode ? http://localhost : https://wirelesswater.com
 - in the first worksheet:
   - find the first empty row (R1)
   - extract the info before R1 as metadata (col A is key, col b is value). Key mapping: "Client Name: " -> clientName, "Lab Name: " -> labName, "Lab Report ID: " -> labReportId, "Lab Report Name: " -> labReportName
-  - find the row with col A = "Analyte", col b = "Unit", col c = "Analytical Method" (R2)
-  - for each col starting from col D, extract the info before R2 as sample info (col A to C (just 1 cell, they are merged) is key). Key mapping: "Client Sample ID" -> clientSampleId, "Lab Sample ID" -> labSampleId, Matrix -> matrix, "Sampling Location Code" -> samplingLocationCode, "Sampling Location Name" -> samplingLocationName, "Lab Sample Comment" -> labSampleComment, "Sample Code" -> sampleCode, "Date Sampled" -> collectionDate, "Time Sampled (24h)" -> collectionTime
-  - for the rows after R2:
-    - ignore if it's empty, or the first cell is "Lab Results"
-    - if only the first cell has value, set the value as the current Category
-    - for each sample info, create an analyte object with analyte (col A), unit (col B), result (the col where the sample info is from), category (the current Category), sample info
-  - put all the analytes from the previous step into a big list, sort by sampleInfo.labSampleId then category then analyte name
+  - the worksheet may contain multiple report blocks stacked vertically (each block has its own sample info header and its own set of samples). For each block:
+    - find the row with col A = "Analyte", col b = "Unit", col c = "Analytical Method" (R2)
+    - for each col starting from col D, extract the sample info from the block's sample info rows (the contiguous rows just above R2 whose col A is one of the sample info keys; col A to C is a single merged key cell). Key mapping: "Client Sample ID" -> clientSampleId, "Lab Sample ID" -> labSampleId, Matrix -> matrix, "Sampling Location Code" -> samplingLocationCode, "Sampling Location Name" -> samplingLocationName, "Lab Sample Comment" -> labSampleComment, "Sample Code" -> sampleCode, "Date Sampled" -> collectionDate, "Time Sampled (24h)" -> collectionTime
+    - for the rows after R2 (until the next block's sample info header, or the end of the sheet):
+      - ignore if it's empty, or the first cell is "Lab Results"
+      - if only the first cell has value, set the value as the current Category
+      - for each sample info, create an analyte object with analyte (col A), unit (col B), result (the col where the sample info is from), category (the current Category), sample info
+  - put all the analytes from all blocks into a big list, sort by sampleInfo.labSampleId then category then analyte name
 
 ### Output
 
@@ -142,8 +147,8 @@ HOST = dev mode ? http://localhost : https://wirelesswater.com
 - rules for comparison:
   - ignore the follwoing fields: rl, analyzed, qualifier, sampleInfo.samplingLocationCode, sampleInfo.samplingLocationName, sampleInfo.labSampleComment, sampleInfo.sampleCode
   - for the result field: "< {value}" = "<{value}"
-  - for the collectionDate field: it can be in 2 formats, "yyyy-MM-dd" and "dd-MMM-yy"
-  - for the collectionTime field: ignore the time zone, such as "MDT"
+  - for the collectionDate field: it can be in these formats, "yyyy-MM-dd", "dd-MMM-yy" and "dd-MMM-yyyy" (2-digit year, e.g. "26", means 2026)
+  - for the collectionTime field: ignore the time zone, such as "MDT". Also treat "00:00" as no value (equal to a missing/blank time)
   - for the unit field:
     - no difference regardless of the value for analyte ph
     - "µg/L" = "μg/L"
